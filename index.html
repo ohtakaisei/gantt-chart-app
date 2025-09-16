@@ -1,0 +1,1008 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ガンちゃ！</title>
+    <!-- Tailwind CSSの読み込み -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        // Tailwind CSSの設定（本番環境警告を抑制）
+        tailwind.config = {
+            theme: {
+                extend: {}
+            }
+        }
+    </script>
+    
+    <!-- Firebase SDK -->
+    <script type="module">
+        import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
+        import { getFirestore, collection, getDocs, addDoc, updateDoc, deleteDoc, doc, onSnapshot } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
+        
+        // Firebase設定（後で設定）
+        const firebaseConfig = {
+            // ここにFirebase設定を追加
+            apiKey: "AIzaSyCGS_Da-rjzrBOt5TNPO_A6b879lCuNUU0",
+            authDomain: "gantt-chart-app-b113a.firebaseapp.com",
+            projectId: "gantt-chart-app-b113a",
+            storageBucket: "gantt-chart-app-b113a.firebasestorage.app",
+            messagingSenderId: "300778880243",
+            appId: "1:300778880243:web:9844d5c2948e39ad120b86"
+        };
+        
+        // Firebase初期化
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+        
+        // グローバル変数として設定
+        window.db = db;
+        window.collection = collection;
+        window.getDocs = getDocs;
+        window.addDoc = addDoc;
+        window.updateDoc = updateDoc;
+        window.deleteDoc = deleteDoc;
+        window.doc = doc;
+        window.onSnapshot = onSnapshot;
+    </script>
+    <!-- Flatpickr (カレンダーライブラリ) の読み込み -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/l10n/ja.js"></script>
+
+    <!-- Font Awesome (アイコン) の読み込み -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+    <style>
+        /* アプリ全体のフォント設定 */
+        body {
+            font-family: 'Helvetica Neue', Arial, 'Hiragino Kaku Gothic ProN', 'Hiragino Sans', Meiryo, sans-serif;
+        }
+
+        /* スクロールバーのデザイン */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        ::-webkit-scrollbar-thumb {
+            background-color: #cbd5e1;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-track {
+            background-color: #f1f5f9;
+        }
+
+        /* モーダルのアニメーション */
+        .modal-enter {
+            opacity: 0;
+            transform: scale(0.95);
+        }
+        .modal-enter-active {
+            opacity: 1;
+            transform: scale(1);
+            transition: all 0.2s ease-out;
+        }
+        .modal-leave-active {
+            opacity: 0;
+            transform: scale(0.95);
+            transition: all 0.2s ease-in;
+        }
+        
+        /* ガントチャートのバーのツールチップ */
+        .gantt-bar:hover .tooltip {
+            display: block;
+        }
+
+        /* ローディングオーバーレイ */
+        #loadingOverlay {
+            transition: opacity 0.3s;
+        }
+    </style>
+</head>
+<body class="bg-slate-100 text-slate-800">
+
+    <!-- ローディングオーバーレイ -->
+    <div id="loadingOverlay" class="fixed inset-0 bg-white bg-opacity-75 z-50 flex items-center justify-center hidden">
+        <div class="flex items-center gap-4">
+            <i class="fas fa-spinner fa-spin text-4xl text-blue-500"></i>
+            <span class="text-lg text-slate-600">データを処理中...</span>
+        </div>
+    </div>
+
+    <div id="app" class="p-4 md:p-6 lg:p-8 max-w-full mx-auto">
+        <!-- ヘッダーエリア -->
+        <header class="mb-6 flex flex-wrap items-center justify-between gap-4">
+            <div>
+                <h1 class="text-3xl font-bold text-slate-700">ガンちゃ</h1>
+                <p class="text-slate-500">プロジェクトの進捗を視覚的に管理します。</p>
+            </div>
+            <div class="flex items-center gap-2 flex-wrap">
+                <!-- ユーザーフィルター -->
+                <div class="flex items-center gap-2">
+                    <label for="userFilter" class="text-sm font-medium"><i class="fas fa-filter mr-1"></i>ユーザーで絞り込み:</label>
+                    <select id="userFilter" class="bg-white border border-slate-300 rounded-lg shadow-sm py-2 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition">
+                        <option value="all">すべてのユーザー</option>
+                    </select>
+                </div>
+                <!-- 各種ボタン -->
+                <button id="manageUsersBtn" class="bg-indigo-500 hover:bg-indigo-600 text-white font-bold py-2 px-4 rounded-lg shadow transition duration-300 ease-in-out transform hover:scale-105"><i class="fas fa-users-cog mr-2"></i>ユーザー管理</button>
+                <button id="addProjectBtn" class="bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded-lg shadow transition duration-300 ease-in-out transform hover:scale-105"><i class="fas fa-plus-circle mr-2"></i>プロジェクト追加</button>
+            </div>
+        </header>
+        
+        <!-- メインのガントチャートエリア -->
+        <div class="bg-white rounded-xl shadow-lg overflow-hidden">
+            <!-- チャートヘッダー (年ナビゲーション) -->
+            <div class="p-4 border-b border-slate-200 flex items-center justify-between bg-slate-50">
+                <button id="prevYearBtn" class="p-2 rounded-full hover:bg-slate-200 transition"><i class="fas fa-chevron-left"></i></button>
+                <h2 id="currentYearDisplay" class="text-xl font-semibold"></h2>
+                <button id="nextYearBtn" class="p-2 rounded-full hover:bg-slate-200 transition"><i class="fas fa-chevron-right"></i></button>
+            </div>
+
+            <!-- ガントチャートの描画エリア -->
+            <div id="ganttChartContainer" class="relative overflow-x-auto">
+                <!-- ここにJavaScriptでチャートが描画される -->
+            </div>
+        </div>
+    </div>
+
+    <!-- モーダルウィンドウ (最初は非表示) -->
+    <!-- プロジェクト追加/編集モーダル -->
+    <div id="projectModal" class="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-white rounded-xl shadow-2xl w-full max-w-lg modal-enter">
+            <div class="p-6 border-b">
+                <h3 id="projectModalTitle" class="text-xl font-bold">新規プロジェクト作成</h3>
+            </div>
+            <form id="projectForm" class="p-6 space-y-4">
+                <input type="hidden" id="projectId">
+                <div>
+                    <label for="projectName" class="block text-sm font-medium text-slate-600 mb-1">プロジェクト名</label>
+                    <input type="text" id="projectName" class="w-full border border-slate-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500" required>
+                </div>
+                <div>
+                    <label for="projectPeriod" class="block text-sm font-medium text-slate-600 mb-1">期間</label>
+                    <input type="text" id="projectPeriod" class="w-full border border-slate-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="開始日から終了日を選択" required>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-slate-600 mb-1">担当者 (複数選択可)</label>
+                    <div id="projectUsers" class="max-h-32 overflow-y-auto space-y-2 p-3 bg-slate-50 border border-slate-300 rounded-lg">
+                        <!-- ユーザー選択チェックボックスがここに入る -->
+                    </div>
+                </div>
+                <div>
+                    <label for="projectOwner" class="block text-sm font-medium text-slate-600 mb-1">作成者</label>
+                    <select id="projectOwner" class="w-full border border-slate-300 bg-white rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500" required>
+                        <!-- ユーザー選択肢がここに入る -->
+                    </select>
+                </div>
+                 <div>
+                    <label for="projectDetailsText" class="block text-sm font-medium text-slate-600 mb-1">内容</label>
+                    <textarea id="projectDetailsText" rows="3" class="w-full border border-slate-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"></textarea>
+                </div>
+            </form>
+            <div class="p-4 bg-slate-50 rounded-b-xl flex justify-end gap-2">
+                <button type="button" class="close-modal-btn bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold py-2 px-4 rounded-lg transition">キャンセル</button>
+                <button type="submit" id="projectSubmitBtn" form="projectForm" class="bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded-lg transition">作成</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- ユーザー管理モーダル -->
+    <div id="userManagementModal" class="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-white rounded-xl shadow-2xl w-full max-w-md modal-enter">
+            <div class="p-6 border-b">
+                <h3 class="text-xl font-bold">ユーザー管理</h3>
+            </div>
+            <div class="p-6">
+                <h4 class="font-bold text-slate-600 mb-2">ユーザーリスト</h4>
+                <div id="userList" class="max-h-48 overflow-y-auto space-y-2 border rounded-lg p-3 mb-4">
+                    <!-- ユーザーリストがここに表示される -->
+                </div>
+                <h4 class="font-bold text-slate-600 mb-2">新規ユーザー追加</h4>
+                <form id="addUserForm" class="flex gap-2">
+                    <input type="text" id="userName" class="flex-grow border border-slate-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="新しいユーザー名" required>
+                    <button type="submit" class="bg-indigo-500 hover:bg-indigo-600 text-white font-bold py-2 px-4 rounded-lg transition"><i class="fas fa-plus"></i></button>
+                </form>
+            </div>
+            <div class="p-4 bg-slate-50 rounded-b-xl flex justify-end">
+                <button type="button" class="close-modal-btn bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold py-2 px-4 rounded-lg transition">閉じる</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- プロジェクト詳細モーダル -->
+    <div id="projectDetailsModal" class="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-white rounded-xl shadow-2xl w-full max-w-md modal-enter">
+            <div id="projectDetailsHeader" class="p-6 border-b rounded-t-xl">
+                <h3 id="detailsProjectName" class="text-2xl font-bold text-white"></h3>
+                <p id="detailsProjectPeriod" class="text-white opacity-90 text-sm"></p>
+            </div>
+            <div class="p-6">
+                <h4 class="font-bold text-slate-600 mb-2">内容</h4>
+                <p id="detailsProjectContent" class="mb-4 bg-slate-50 p-3 rounded-lg text-slate-700"></p>
+                <h4 class="font-bold text-slate-600 mb-2">参加者</h4>
+                <ul id="detailsProjectParticipants" class="list-disc list-inside text-slate-700"></ul>
+            </div>
+            <div class="p-4 bg-slate-50 rounded-b-xl flex justify-end gap-2">
+                <button type="button" id="deleteProjectBtn" class="bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-4 rounded-lg transition"><i class="fas fa-trash-alt mr-2"></i>削除</button>
+                <button type="button" id="editProjectBtn" class="bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded-lg transition"><i class="fas fa-edit mr-2"></i>編集</button>
+                <button type="button" class="close-modal-btn bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold py-2 px-4 rounded-lg transition">閉じる</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 削除確認モーダル -->
+    <div id="deleteConfirmModal" class="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-white rounded-xl shadow-2xl w-full max-w-sm modal-enter">
+            <div class="p-6 text-center">
+                <i class="fas fa-exclamation-triangle text-4xl text-red-500 mb-4"></i>
+                <h3 id="deleteConfirmTitle" class="text-lg font-bold mb-2"></h3>
+                <p id="deleteConfirmMessage" class="text-slate-600"></p>
+            </div>
+            <div class="p-4 bg-slate-50 rounded-b-xl flex justify-center gap-4">
+                <button type="button" class="cancel-delete-btn bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold py-2 px-6 rounded-lg transition">いいえ</button>
+                <button type="button" id="confirmDeleteBtn" class="bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-6 rounded-lg transition">はい、削除します</button>
+            </div>
+        </div>
+    </div>
+
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+
+            // --- ★★★ 設定項目 ★★★ ---
+            // Firebase設定（後で設定）
+            const FIREBASE_CONFIG = {
+                // ここにFirebase設定を追加
+            };
+
+            // --- ローカルファイルアクセスの検出 ---
+            const isLocalFile = window.location.protocol === 'file:';
+            if (isLocalFile) {
+                console.warn('ローカルファイルからアクセスしています。CORSエラーが発生する可能性があります。');
+                showLocalFileWarning();
+            }
+
+            // ローカルファイル警告を表示する関数
+            function showLocalFileWarning() {
+                const warningHtml = `
+                    <div class="fixed top-0 left-0 right-0 bg-red-600 text-white p-4 z-50 shadow-lg">
+                        <div class="max-w-4xl mx-auto flex items-center justify-between">
+                            <div class="flex items-center">
+                                <i class="fas fa-exclamation-triangle text-2xl mr-3"></i>
+                                <div>
+                                    <h3 class="font-bold text-lg">CORSエラーが発生しています</h3>
+                                    <p class="text-sm opacity-90">ローカルファイルからアクセスしているため、Googleスプレッドシートとの通信ができません。</p>
+                                </div>
+                            </div>
+                            <div class="flex items-center gap-4">
+                                <button onclick="startLocalServer()" class="bg-white text-red-600 px-4 py-2 rounded-lg font-bold hover:bg-gray-100 transition">
+                                    <i class="fas fa-server mr-2"></i>ローカルサーバーを起動
+                                </button>
+                                <button onclick="this.parentElement.parentElement.parentElement.remove()" class="text-white hover:text-gray-200 text-2xl">
+                                    <i class="fas fa-times"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                document.body.insertAdjacentHTML('afterbegin', warningHtml);
+            }
+
+            // ローカルサーバー起動の説明を表示
+            function startLocalServer() {
+                document.getElementById('app').innerHTML = `
+                    <div class="text-center p-8 bg-white rounded-lg shadow-md">
+                        <h2 class="text-2xl font-bold text-blue-600 mb-4">ローカルサーバーを起動してください</h2>
+                        <div class="bg-blue-50 border border-blue-200 rounded-lg p-6 text-left mb-6">
+                            <h3 class="font-bold text-blue-800 mb-3">手順：</h3>
+                            <ol class="text-blue-700 text-sm space-y-2 list-decimal list-inside">
+                                <li>ターミナル（コマンドプロンプト）を開く</li>
+                                <li>以下のコマンドを実行：</li>
+                            </ol>
+                            <div class="bg-gray-100 p-3 rounded mt-3 mb-3">
+                                <code class="text-sm font-mono">cd "${window.location.pathname.replace('/index.html', '')}"</code>
+                            </div>
+                            <div class="bg-gray-100 p-3 rounded mb-3">
+                                <code class="text-sm font-mono">python -m http.server 8000</code>
+                            </div>
+                            <p class="text-blue-700 text-sm">3. ブラウザで <code>http://localhost:8000</code> にアクセス</p>
+                        </div>
+                        <div class="bg-green-50 border border-green-200 rounded-lg p-4 text-left">
+                            <h3 class="font-bold text-green-800 mb-2">なぜローカルサーバーが必要？</h3>
+                            <p class="text-green-700 text-sm">ブラウザのセキュリティ機能により、ローカルファイル（file://）から他のウェブサイトへの通信が制限されています。ローカルサーバーを使用することで、この制限を回避できます。</p>
+                        </div>
+                        <button onclick="location.reload()" class="mt-6 bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded-lg transition">
+                            ページを再読み込み
+                        </button>
+                    </div>`;
+            } 
+
+            // --- 状態管理 ---
+            let currentDate = new Date();
+            let users = [];
+            let projects = [];
+            let filteredUserId = 'all';
+
+            // --- DOM要素の取得 ---
+            const ganttChartContainer = document.getElementById('ganttChartContainer');
+            const currentYearDisplay = document.getElementById('currentYearDisplay');
+            const userFilter = document.getElementById('userFilter');
+            const loadingOverlay = document.getElementById('loadingOverlay');
+
+            // --- ローディング表示 ---
+            const showLoader = () => loadingOverlay.classList.remove('hidden');
+            const hideLoader = () => loadingOverlay.classList.add('hidden');
+
+            // --- Firestore通信 ---
+            async function fetchData() {
+                if (!window.db) {
+                    console.warn('Firebaseが初期化されていません。デモデータを使用します。');
+                    loadDemoData();
+                    return;
+                }
+                
+                showLoader();
+                try {
+                    // ユーザーデータを取得
+                    const usersSnapshot = await getDocs(collection(db, 'users'));
+                    users = usersSnapshot.docs.map(doc => ({
+                        id: doc.id,
+                        ...doc.data()
+                    }));
+                    
+                    // プロジェクトデータを取得
+                    const projectsSnapshot = await getDocs(collection(db, 'projects'));
+                    projects = projectsSnapshot.docs.map(doc => ({
+                        id: doc.id,
+                        ...doc.data()
+                    }));
+                    
+                    renderAll();
+                } catch (error) {
+                    console.error('データの取得に失敗しました:', error);
+                    console.log('デモデータを読み込みます...');
+                    loadDemoData();
+                } finally {
+                    hideLoader();
+                }
+            }
+            
+            // CORSエラーを表示する関数
+            function showCorsError() {
+                document.getElementById('app').innerHTML = `
+                    <div class="text-center p-8 bg-white rounded-lg shadow-md">
+                        <h2 class="text-2xl font-bold text-red-600 mb-4">CORSエラーが発生しました</h2>
+                        <p class="text-slate-600 mb-4">Googleスプレッドシートからのデータ取得ができません。</p>
+                        <div class="bg-red-50 border border-red-200 rounded-lg p-4 text-left mb-4">
+                            <h3 class="font-bold text-red-800 mb-2">エラーの原因：</h3>
+                            <ul class="text-red-700 text-sm list-disc list-inside space-y-1">
+                                <li>ローカルファイル（file://）からアクセスしている</li>
+                                <li>Google Apps ScriptのCORS設定が不適切</li>
+                                <li>ネットワーク接続の問題</li>
+                            </ul>
+                        </div>
+                        <div class="bg-blue-50 border border-blue-200 rounded-lg p-4 text-left mb-4">
+                            <h3 class="font-bold text-blue-800 mb-2">解決方法：</h3>
+                            <p class="text-blue-700 text-sm mb-2">1. ローカルサーバーを起動してください：</p>
+                            <div class="bg-gray-100 p-3 rounded mb-2">
+                                <code class="text-sm font-mono">python3 -m http.server 8000</code>
+                            </div>
+                            <p class="text-blue-700 text-sm mb-2">2. ブラウザで <code>http://localhost:8000</code> にアクセス</p>
+                        </div>
+                        <div class="flex gap-4 justify-center">
+                            <button onclick="loadDemoData(); renderAll();" class="bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded-lg transition">
+                                <i class="fas fa-play mr-2"></i>デモデータで開始
+                            </button>
+                            <button onclick="location.reload()" class="bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded-lg transition">
+                                <i class="fas fa-refresh mr-2"></i>再試行
+                            </button>
+                        </div>
+                    </div>`;
+            }
+            
+            // 認証エラーを表示する関数
+            function showAuthError() {
+                document.getElementById('app').innerHTML = `
+                    <div class="text-center p-8 bg-white rounded-lg shadow-md">
+                        <h2 class="text-2xl font-bold text-orange-600 mb-4">認証エラーが発生しました</h2>
+                        <p class="text-slate-600 mb-4">Google Apps Scriptへのアクセスに認証が必要です。</p>
+                        <div class="bg-orange-50 border border-orange-200 rounded-lg p-4 text-left mb-4">
+                            <h3 class="font-bold text-orange-800 mb-2">エラーの原因：</h3>
+                            <ul class="text-orange-700 text-sm list-disc list-inside space-y-1">
+                                <li>Google Apps Scriptが「誰でもアクセス可能」に設定されていない</li>
+                                <li>デプロイ設定で認証が必要になっている</li>
+                                <li>URLが正しくない可能性</li>
+                            </ul>
+                        </div>
+                        <div class="bg-blue-50 border border-blue-200 rounded-lg p-4 text-left mb-4">
+                            <h3 class="font-bold text-blue-800 mb-2">解決方法：</h3>
+                            <ol class="text-blue-700 text-sm list-decimal list-inside space-y-2">
+                                <li>Google Apps Scriptの管理画面を開く</li>
+                                <li>「デプロイ」→「新しいデプロイ」をクリック</li>
+                                <li>「種類」で「ウェブアプリ」を選択</li>
+                                <li>「アクセスできるユーザー」で「全員（Googleアカウントを持っているユーザー）」または「全員」を選択</li>
+                                <li>「デプロイ」をクリックして新しいURLを取得</li>
+                                <li>HTMLファイルの <code>WEB_APP_URL</code> を新しいURLに更新</li>
+                            </ol>
+                        </div>
+                        <div class="flex gap-4 justify-center">
+                            <button onclick="loadDemoData(); renderAll();" class="bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded-lg transition">
+                                <i class="fas fa-play mr-2"></i>デモデータで開始
+                            </button>
+                            <button onclick="location.reload()" class="bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded-lg transition">
+                                <i class="fas fa-refresh mr-2"></i>再試行
+                            </button>
+                        </div>
+                    </div>`;
+            }
+            
+            // デモデータの読み込み
+            function loadDemoData() {
+                users = [
+                    { id: 1, name: '田中太郎' },
+                    { id: 2, name: '佐藤花子' },
+                    { id: 3, name: '鈴木一郎' }
+                ];
+                projects = [
+                    {
+                        id: 1,
+                        name: 'ウェブサイトリニューアル',
+                        startDate: '2024-01-15',
+                        endDate: '2024-03-15',
+                        participants: [1, 2],
+                        owner: 1,
+                        details: '既存のウェブサイトをモダンなデザインにリニューアルします。',
+                        color: 'bg-blue-500'
+                    },
+                    {
+                        id: 2,
+                        name: 'モバイルアプリ開発',
+                        startDate: '2024-02-01',
+                        endDate: '2024-05-31',
+                        participants: [2, 3],
+                        owner: 2,
+                        details: 'iOS・Android向けのモバイルアプリケーションを開発します。',
+                        color: 'bg-green-500'
+                    }
+                ];
+                renderAll();
+            }
+            
+            async function postData(payload) {
+                if (!window.db) {
+                    console.warn('Firebaseが初期化されていません。ローカルモードで動作します。');
+                    return handleLocalData(payload);
+                }
+                showLoader();
+                try {
+                    const { action, payload: data } = payload;
+                    let result;
+                    
+                    switch (action) {
+                        case 'createUser':
+                            result = await createUser(data);
+                            break;
+                        case 'deleteUser':
+                            result = await deleteUser(data.id);
+                            break;
+                        case 'createProject':
+                            result = await createProject(data);
+                            break;
+                        case 'updateProject':
+                            result = await updateProject(data);
+                            break;
+                        case 'deleteProject':
+                            result = await deleteProject(data.id);
+                            break;
+                        default:
+                            throw new Error('無効なアクションです。');
+                    }
+                    
+                    return result;
+                } catch (error) {
+                    console.error('データの送信に失敗しました:', error);
+                    console.log('ローカルモードで処理を続行します...');
+                    return handleLocalData(payload);
+                } finally {
+                    hideLoader();
+                }
+            }
+            
+            // --- Firestore CRUD関数 ---
+            async function createUser(userData) {
+                const docRef = await addDoc(collection(db, 'users'), {
+                    name: userData.name,
+                    created_at: new Date().toISOString()
+                });
+                return { id: docRef.id, ...userData };
+            }
+            
+            async function deleteUser(userId) {
+                await deleteDoc(doc(db, 'users', userId));
+                // 関連プロジェクトの参加者からも削除
+                const projectsSnapshot = await getDocs(collection(db, 'projects'));
+                for (const projectDoc of projectsSnapshot.docs) {
+                    const projectData = projectDoc.data();
+                    if (projectData.participants && projectData.participants.includes(userId)) {
+                        const updatedParticipants = projectData.participants.filter(id => id !== userId);
+                        await updateDoc(doc(db, 'projects', projectDoc.id), {
+                            participants: updatedParticipants,
+                            updated_at: new Date().toISOString()
+                        });
+                    }
+                }
+                return { id: userId, status: 'deleted' };
+            }
+            
+            async function createProject(projectData) {
+                const colors = ['bg-blue-500', 'bg-green-500', 'bg-purple-500', 'bg-pink-500', 'bg-indigo-500', 'bg-yellow-500', 'bg-red-500', 'bg-teal-500'];
+                const color = colors[Math.floor(Math.random() * colors.length)];
+                const docRef = await addDoc(collection(db, 'projects'), {
+                    name: projectData.name,
+                    startDate: projectData.startDate,
+                    endDate: projectData.endDate,
+                    participants: projectData.participants,
+                    owner: projectData.owner,
+                    details: projectData.details || '',
+                    color: color,
+                    created_at: new Date().toISOString(),
+                    updated_at: new Date().toISOString()
+                });
+                return { 
+                    id: docRef.id, 
+                    name: projectData.name,
+                    startDate: projectData.startDate,
+                    endDate: projectData.endDate,
+                    participants: projectData.participants,
+                    owner: projectData.owner,
+                    details: projectData.details || '',
+                    color: color,
+                    created_at: new Date().toISOString(),
+                    updated_at: new Date().toISOString()
+                };
+            }
+            
+            async function updateProject(projectData) {
+                await updateDoc(doc(db, 'projects', projectData.id), {
+                    name: projectData.name,
+                    startDate: projectData.startDate,
+                    endDate: projectData.endDate,
+                    participants: projectData.participants,
+                    owner: projectData.owner,
+                    details: projectData.details || '',
+                    updated_at: new Date().toISOString()
+                });
+                // 既存のプロジェクトデータを取得して返す
+                const existingProject = projects.find(p => p.id === projectData.id);
+                return {
+                    ...existingProject,
+                    ...projectData,
+                    updated_at: new Date().toISOString()
+                };
+            }
+            
+            async function deleteProject(projectId) {
+                await deleteDoc(doc(db, 'projects', projectId));
+                return { id: projectId, status: 'deleted' };
+            }
+            
+            // ローカルモードでのデータ処理
+            function handleLocalData(payload) {
+                const { action, payload: data } = payload;
+                
+                switch (action) {
+                    case 'createUser':
+                        const newUser = {
+                            id: Math.max(...users.map(u => u.id), 0) + 1,
+                            name: data.name
+                        };
+                        users.push(newUser);
+                        renderAll();
+                        return newUser;
+                        
+                    case 'createProject':
+                        const newProject = {
+                            id: Math.max(...projects.map(p => p.id), 0) + 1,
+                            ...data,
+                            color: getRandomColor()
+                        };
+                        projects.push(newProject);
+                        renderAll();
+                        return newProject;
+                        
+                    case 'updateProject':
+                        const projectIndex = projects.findIndex(p => p.id === data.id);
+                        if (projectIndex !== -1) {
+                            projects[projectIndex] = { ...projects[projectIndex], ...data };
+                            renderAll();
+                            return projects[projectIndex];
+                        }
+                        return null;
+                        
+                    case 'deleteProject':
+                        projects = projects.filter(p => p.id !== data.id);
+                        renderAll();
+                        return { success: true };
+                        
+                    case 'deleteUser':
+                        users = users.filter(u => u.id !== data.id);
+                        projects.forEach(p => {
+                            p.participants = p.participants.filter(id => id !== data.id);
+                        });
+                        renderAll();
+                        return { success: true };
+                        
+                    default:
+                        return null;
+                }
+            }
+            
+            // ランダムな色を取得
+            function getRandomColor() {
+                const colors = [
+                    'bg-blue-500', 'bg-green-500', 'bg-purple-500', 'bg-pink-500',
+                    'bg-indigo-500', 'bg-yellow-500', 'bg-red-500', 'bg-teal-500'
+                ];
+                return colors[Math.floor(Math.random() * colors.length)];
+            }
+
+
+            // --- 日付関連のヘルパー関数 ---
+            const isLeapYear = (year) => (year % 4 === 0 && year % 100 !== 0) || (year % 400 === 0);
+            const getDaysInYear = (year) => isLeapYear(year) ? 366 : 365;
+            const getDayOfYear = (date) => {
+                const start = new Date(date.getFullYear(), 0, 0);
+                const diff = date - start;
+                const oneDay = 1000 * 60 * 60 * 24;
+                return Math.floor(diff / oneDay);
+            };
+
+            // --- レンダリング関数 ---
+
+            function renderGanttChart() {
+                // (この関数の中身は変更なし)
+                ganttChartContainer.innerHTML = '';
+                const year = currentDate.getFullYear();
+                currentYearDisplay.textContent = `${year}年`;
+                console.log('Rendering Gantt chart for year:', year, 'with projects:', projects); // デバッグ用
+                const grid = document.createElement('div');
+                grid.style.display = 'grid';
+                grid.style.gridTemplateColumns = `180px repeat(12, minmax(80px, 1fr))`;
+                const header = document.createElement('div');
+                header.style.display = 'contents';
+                const projectHeader = document.createElement('div');
+                projectHeader.className = 'sticky left-0 z-20 bg-slate-100 p-2 font-semibold border-b border-r border-slate-200';
+                projectHeader.textContent = 'プロジェクト';
+                header.appendChild(projectHeader);
+                for (let i = 0; i < 12; i++) {
+                    const monthHeader = document.createElement('div');
+                    monthHeader.className = 'text-center p-2 border-b border-r border-slate-200 font-medium bg-slate-50';
+                    monthHeader.textContent = `${i + 1}月`;
+                    header.appendChild(monthHeader);
+                }
+                grid.appendChild(header);
+                const filteredProjects = projects.filter(p => filteredUserId === 'all' || p.participants.includes(filteredUserId));
+                const barContainer = document.createElement('div');
+                barContainer.className = 'relative';
+                barContainer.style.gridColumn = '2 / -1';
+                barContainer.style.gridRow = `2 / span ${Math.max(1, filteredProjects.length)}`;
+                if (filteredProjects.length === 0) {
+                    const noProjectRow = document.createElement('div');
+                    noProjectRow.style.gridColumn = '1 / -1';
+                    noProjectRow.className = 'text-center p-8 text-slate-500';
+                    noProjectRow.textContent = '表示対象のプロジェクトがありません。';
+                    grid.appendChild(noProjectRow);
+                } else {
+                    filteredProjects.forEach((project, index) => {
+                        console.log('Rendering project:', project); // デバッグ用
+                        const projectNameCell = document.createElement('div');
+                        projectNameCell.className = 'sticky left-0 z-10 bg-white p-3 border-b border-r border-slate-200 text-sm truncate';
+                        projectNameCell.textContent = project.name;
+                        projectNameCell.style.gridRow = `${index + 2}`;
+                        grid.appendChild(projectNameCell);
+                        for (let i = 0; i < 12; i++) {
+                            const cell = document.createElement('div');
+                            cell.className = 'border-b border-r border-slate-200';
+                            cell.style.gridRow = `${index + 2}`;
+                            cell.style.gridColumn = `${i + 2}`;
+                            grid.appendChild(cell);
+                        }
+                        const startDate = new Date(project.startDate);
+                        const endDate = new Date(project.endDate);
+                        console.log('Project dates:', { startDate, endDate, startDateStr: project.startDate, endDateStr: project.endDate }); // デバッグ用
+                        const viewStartDate = new Date(year, 0, 1);
+                        const viewEndDate = new Date(year, 11, 31, 23, 59, 59);
+                        console.log('Date comparison:', { 
+                            startDate, endDate, viewStartDate, viewEndDate,
+                            startInRange: startDate <= viewEndDate,
+                            endInRange: endDate >= viewStartDate,
+                            inRange: startDate <= viewEndDate && endDate >= viewStartDate
+                        }); // デバッグ用
+                        if (startDate <= viewEndDate && endDate >= viewStartDate) {
+                            const bar = document.createElement('div');
+                            bar.className = `gantt-bar absolute h-8 ${project.color} rounded-lg text-white text-xs flex items-center px-2 z-10 cursor-pointer transition-all duration-200 transform hover:scale-[1.02] hover:z-20`;
+                            bar.textContent = project.name;
+                            bar.dataset.projectId = project.id;
+                            const daysInYear = getDaysInYear(year);
+                            const barStartDate = startDate > viewStartDate ? startDate : viewStartDate;
+                            const barEndDate = endDate < viewEndDate ? endDate : viewEndDate;
+                            const startDay = getDayOfYear(barStartDate);
+                            const endDay = getDayOfYear(barEndDate);
+                            const duration = endDay - startDay + 1;
+                            console.log('Bar calculation:', { startDay, endDay, duration, daysInYear }); // デバッグ用
+                            if (duration > 0) {
+                                bar.style.top = `${index * 48 + 4}px`;
+                                bar.style.left = `${((startDay - 1) / daysInYear) * 100}%`;
+                                bar.style.width = `${(duration / daysInYear) * 100}%`;
+                                const tooltip = document.createElement('div');
+                                tooltip.className = 'tooltip hidden absolute -top-10 left-1/2 -translate-x-1/2 bg-slate-700 text-white text-xs rounded-md py-1 px-2 shadow-lg whitespace-nowrap';
+                                tooltip.textContent = `${project.startDate} ~ ${project.endDate}`;
+                                bar.appendChild(tooltip);
+                                bar.addEventListener('click', () => showProjectDetails(project.id));
+                                barContainer.appendChild(bar);
+                            }
+                        }
+                    });
+                }
+                grid.appendChild(barContainer);
+                ganttChartContainer.appendChild(grid);
+                ganttChartContainer.style.height = `${54 + filteredProjects.length * 48}px`;
+            }
+
+            function updateUserUIs() {
+                // (この関数の中身は変更なし)
+                userFilter.innerHTML = '<option value="all">すべてのユーザー</option>';
+                users.forEach(user => {
+                    const option = document.createElement('option');
+                    option.value = user.id;
+                    option.textContent = user.name;
+                    userFilter.appendChild(option);
+                });
+                userFilter.value = filteredUserId;
+                const projectUsersContainer = document.getElementById('projectUsers');
+                projectUsersContainer.innerHTML = '';
+                if(users.length === 0){
+                    projectUsersContainer.innerHTML = `<p class="text-slate-500 text-sm">ユーザーが登録されていません。</p>`;
+                } else {
+                    users.forEach(user => {
+                        const userDiv = document.createElement('div');
+                        userDiv.className = 'flex items-center';
+                        userDiv.innerHTML = `<input id="user-project-${user.id}" type="checkbox" value="${user.id}" name="participants" class="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"><label for="user-project-${user.id}" class="ml-2 block text-sm text-slate-900">${user.name}</label>`;
+                        projectUsersContainer.appendChild(userDiv);
+                    });
+                }
+                const projectOwnerSelect = document.getElementById('projectOwner');
+                projectOwnerSelect.innerHTML = '';
+                if(users.length === 0){
+                    const option = document.createElement('option');
+                    option.textContent = 'ユーザーがいません';
+                    option.disabled = true;
+                    projectOwnerSelect.appendChild(option);
+                } else {
+                    users.forEach(user => {
+                        const option = document.createElement('option');
+                        option.value = user.id;
+                        option.textContent = user.name;
+                        projectOwnerSelect.appendChild(option);
+                    });
+                }
+            }
+            
+            function renderUserManagementModal() {
+                // (この関数の中身は変更なし)
+                const userListContainer = document.getElementById('userList');
+                userListContainer.innerHTML = '';
+                if (users.length === 0) {
+                    userListContainer.innerHTML = `<p class="text-slate-500 text-center p-4">ユーザーは登録されていません。</p>`;
+                } else {
+                    users.forEach(user => {
+                        const userEl = document.createElement('div');
+                        userEl.className = 'flex justify-between items-center p-2 rounded-lg hover:bg-slate-100';
+                        userEl.innerHTML = `<span class="text-slate-800">${user.name}</span><button class="delete-user-btn text-red-500 hover:text-red-700 transition" data-user-id="${user.id}" data-user-name="${user.name}"><i class="fas fa-trash-alt"></i></button>`;
+                        userListContainer.appendChild(userEl);
+                    });
+                }
+                document.querySelectorAll('.delete-user-btn').forEach(button => {
+                    button.addEventListener('click', handleDeleteUserClick);
+                });
+            }
+
+
+            // --- モーダル関連 ---
+            const modals = document.querySelectorAll('.fixed.inset-0');
+            function openModal(modalId) { /* 変更なし */ modals.forEach(m => m.id === modalId ? m.classList.remove('hidden') : ''); setTimeout(() => document.getElementById(modalId).querySelector('.modal-enter').classList.add('modal-enter-active'), 10); }
+            function closeModal(modal) { /* 変更なし */ if (!modal) return; const c=modal.querySelector('.modal-enter'); c.classList.remove('modal-enter-active'); c.classList.add('modal-leave-active'); setTimeout(() => { modal.classList.add('hidden'); c.classList.remove('modal-leave-active'); }, 200); }
+            modals.forEach(modal => { modal.addEventListener('click', (e) => { if (e.target === modal || e.target.closest('.close-modal-btn') || e.target.closest('.cancel-delete-btn')) { closeModal(modal); } }); });
+
+            // --- イベントハンドラー ---
+            document.getElementById('addProjectBtn').addEventListener('click', () => { /* 変更なし */ const f=document.getElementById('projectForm');f.reset();f.removeAttribute('data-editing-id');document.getElementById('projectModalTitle').textContent='新規プロジェクト作成';document.getElementById('projectSubmitBtn').textContent='作成';document.getElementById('projectSubmitBtn').className='bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded-lg transition';datePicker.clear();openModal('projectModal'); });
+            document.getElementById('manageUsersBtn').addEventListener('click', () => { renderUserManagementModal(); openModal('userManagementModal'); });
+            
+            document.getElementById('projectForm').addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const editingId = e.target.dataset.editingId;
+                const projectData = {
+                    name: document.getElementById('projectName').value,
+                    startDate: datePicker.selectedDates[0]?.toISOString().split('T')[0],
+                    endDate: datePicker.selectedDates[1]?.toISOString().split('T')[0],
+                    participants: Array.from(document.querySelectorAll('#projectUsers input:checked')).map(el => el.value),
+                    owner: document.getElementById('projectOwner').value,
+                    details: document.getElementById('projectDetailsText').value,
+                };
+
+                console.log('Project data:', projectData); // デバッグ用
+
+                if (!projectData.name || !projectData.startDate || !projectData.endDate || projectData.participants.length === 0 || !projectData.owner) {
+                    alert('必須項目を入力してください。'); return;
+                }
+
+                if (editingId) { // 編集
+                    projectData.id = editingId;
+                    const updatedProject = await postData({ action: 'updateProject', payload: projectData });
+                    if (updatedProject) {
+                        const index = projects.findIndex(p => p.id === updatedProject.id);
+                        if(index !== -1) projects[index] = updatedProject;
+                    }
+                } else { // 新規作成
+                    const newProject = await postData({ action: 'createProject', payload: projectData });
+                    console.log('Created project:', newProject); // デバッグ用
+                    if (newProject) {
+                        projects.push(newProject);
+                        console.log('Projects array after push:', projects); // デバッグ用
+                    }
+                }
+                console.log('Rendering all with projects:', projects); // デバッグ用
+                renderAll();
+                closeModal(document.getElementById('projectModal'));
+            });
+
+            document.getElementById('addUserForm').addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const userNameInput = document.getElementById('userName');
+                const userName = userNameInput.value.trim();
+                if(userName && !users.find(u => u.name === userName)) {
+                    const newUser = await postData({ action: 'createUser', payload: { name: userName } });
+                    if (newUser) {
+                        users.push(newUser);
+                        renderAll();
+                        renderUserManagementModal();
+                        userNameInput.value = '';
+                    }
+                }
+            });
+            
+            function showProjectDetails(projectId) {
+                const project = projects.find(p => p.id === projectId);
+                if (project) {
+                    const modal = document.getElementById('projectDetailsModal');
+                    modal.dataset.currentProjectId = project.id;
+                    document.getElementById('detailsProjectName').textContent = project.name;
+                    document.getElementById('detailsProjectPeriod').textContent = `${project.startDate} ~ ${project.endDate}`;
+                    document.getElementById('detailsProjectContent').textContent = project.details || '特記事項なし';
+                    const participantsList = document.getElementById('detailsProjectParticipants');
+                    participantsList.innerHTML = '';
+                    project.participants.forEach(userId => {
+                        const user = users.find(u => u.id === userId);
+                        if (user) {
+                            participantsList.innerHTML += `<li>${user.name}</li>`;
+                        }
+                    });
+                    document.getElementById('projectDetailsHeader').className = `p-6 border-b rounded-t-xl ${project.color}`;
+                    openModal('projectDetailsModal');
+                }
+            }
+
+            document.getElementById('editProjectBtn').addEventListener('click', () => {
+                const pId = document.getElementById('projectDetailsModal').dataset.currentProjectId;
+                console.log('Edit button clicked, projectId:', pId); // デバッグ用
+                const p = projects.find(p => p.id === pId);
+                console.log('Found project:', p); // デバッグ用
+                if (p) {
+                    closeModal(document.getElementById('projectDetailsModal'));
+                    const f = document.getElementById('projectForm');
+                    f.dataset.editingId = p.id;
+                    document.getElementById('projectModalTitle').textContent = 'プロジェクトの編集';
+                    const s = document.getElementById('projectSubmitBtn');
+                    s.textContent = '更新';
+                    s.className = 'bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded-lg transition';
+                    document.getElementById('projectName').value = p.name;
+                    datePicker.setDate([p.startDate, p.endDate], true);
+                    document.querySelectorAll('#projectUsers input').forEach(i => {
+                        i.checked = p.participants.includes(i.value);
+                    });
+                    document.getElementById('projectOwner').value = p.owner;
+                    document.getElementById('projectDetailsText').value = p.details;
+                    openModal('projectModal');
+                }
+            });
+            
+            document.getElementById('deleteProjectBtn').addEventListener('click', () => {
+                const projectId = document.getElementById('projectDetailsModal').dataset.currentProjectId;
+                console.log('Delete button clicked, projectId:', projectId); // デバッグ用
+                const project = projects.find(p => p.id === projectId);
+                console.log('Found project for deletion:', project); // デバッグ用
+                if (!project) return;
+                showDeleteConfirm('プロジェクトを削除', `本当に「${project.name}」を削除しますか？`, async () => {
+                    const result = await postData({ action: 'deleteProject', payload: { id: project.id } });
+                    if (result) {
+                        projects = projects.filter(p => p.id !== project.id);
+                        closeModal(document.getElementById('projectDetailsModal'));
+                        renderAll();
+                    }
+                });
+            });
+            
+            function handleDeleteUserClick(event) {
+                const userId = event.currentTarget.dataset.userId;
+                const userName = event.currentTarget.dataset.userName;
+                if (projects.some(p => p.owner === userId)) {
+                    alert(`「${userName}」はプロジェクト作成者のため削除できません。`); return;
+                }
+                showDeleteConfirm('ユーザーを削除', `本当に「${userName}」を削除しますか？`, async () => {
+                     const result = await postData({ action: 'deleteUser', payload: { id: userId } });
+                     if (result) {
+                        users = users.filter(u => u.id !== userId);
+                        projects.forEach(p => { p.participants = p.participants.filter(id => id !== userId); });
+                        renderUserManagementModal();
+                        renderAll();
+                     }
+                });
+            }
+
+            function showDeleteConfirm(title, message, onConfirm) {
+                const modal = document.getElementById('deleteConfirmModal');
+                document.getElementById('deleteConfirmTitle').textContent = title;
+                document.getElementById('deleteConfirmMessage').textContent = message;
+                const confirmBtn = document.getElementById('confirmDeleteBtn');
+                const newConfirmBtn = confirmBtn.cloneNode(true);
+                confirmBtn.parentNode.replaceChild(newConfirmBtn, confirmBtn);
+                newConfirmBtn.onclick = () => { closeModal(modal); onConfirm(); };
+                openModal('deleteConfirmModal');
+            }
+            
+            document.getElementById('prevYearBtn').addEventListener('click', () => { currentDate.setFullYear(currentDate.getFullYear() - 1); renderGanttChart(); });
+            document.getElementById('nextYearBtn').addEventListener('click', () => { currentDate.setFullYear(currentDate.getFullYear() + 1); renderGanttChart(); });
+            userFilter.addEventListener('change', (e) => { filteredUserId = e.target.value; renderGanttChart(); });
+            window.addEventListener('resize', renderGanttChart);
+
+            const datePicker = flatpickr("#projectPeriod", { mode: "range", dateFormat: "Y-m-d", locale: "ja" });
+            
+            function renderAll() {
+                updateUserUIs();
+                renderGanttChart();
+            }
+
+            // --- 初期化 ---
+            if (!window.db) {
+                document.getElementById('app').innerHTML = `
+                    <div class="text-center p-8 bg-white rounded-lg shadow-md">
+                        <h2 class="text-2xl font-bold text-blue-600 mb-4">デモモードで実行中</h2>
+                        <p class="text-slate-600 mb-4">現在はデモデータで動作しています。</p>
+                        <div class="bg-yellow-50 border border-yellow-200 rounded-lg p-4 text-left">
+                            <h3 class="font-bold text-yellow-800 mb-2">Googleスプレッドシートと連携する場合：</h3>
+                            <p class="text-yellow-700 text-sm">HTMLファイル内の <code>WEB_APP_URL</code> 変数に、設定手順書に従って取得したURLを設定してください。</p>
+                        </div>
+                        <div class="bg-blue-50 border border-blue-200 rounded-lg p-4 text-left mt-4">
+                            <h3 class="font-bold text-blue-800 mb-2">CORSエラーを解決するには：</h3>
+                            <p class="text-blue-700 text-sm">ローカルサーバーで実行することをお勧めします。以下のコマンドで簡単に起動できます：</p>
+                            <code class="block bg-gray-100 p-2 rounded mt-2 text-sm">python -m http.server 8000</code>
+                            <p class="text-blue-700 text-sm mt-2">その後、<code>http://localhost:8000</code> でアクセスしてください。</p>
+                        </div>
+                    </div>`;
+                loadDemoData();
+            } else if (isLocalFile) {
+                // ローカルファイルの場合は即座にデモデータを読み込み
+                console.log('ローカルファイルからアクセスしているため、デモデータを使用します。');
+                loadDemoData();
+            } else {
+                // ローカルサーバーからのアクセスの場合のみGoogle Apps Scriptに接続
+                fetchData().catch(error => {
+                    console.error('初期データ読み込みエラー:', error);
+                    showCorsError();
+                });
+            }
+        });
+    </script>
+</body>
+</html>
+
