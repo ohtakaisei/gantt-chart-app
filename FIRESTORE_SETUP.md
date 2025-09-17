@@ -199,3 +199,4 @@ const app = initializeApp(firebaseConfig);
 ---
 
 **注意**: この設定は開発用です。本番環境では適切なセキュリティ設定を行ってください。
+

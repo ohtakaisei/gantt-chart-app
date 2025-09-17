@@ -1,0 +1,27 @@
+# Git関連
+.git
+.gitignore
+
+# ドキュメント
+README.md
+DEPLOY_GUIDE.md
+FIRESTORE_SETUP.md
+
+# 開発用ファイル
+.vscode/
+.idea/
+*.log
+
+# 一時ファイル
+*.tmp
+*.temp
+
+# OS関連
+.DS_Store
+Thumbs.db
+
+# Node.js関連（使用していないが念のため）
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
