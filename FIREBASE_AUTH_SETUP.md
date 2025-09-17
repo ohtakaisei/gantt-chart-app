@@ -20,6 +20,15 @@
 4. プロジェクトのサポートメールを設定
 5. 「保存」をクリック
 
+#### 1.3 認証済みドメインの設定（重要）
+1. 「Authentication」画面で「Settings」タブをクリック
+2. 「Authorized domains」セクションを探す
+3. 「Add domain」ボタンをクリック
+4. 以下のドメインを追加：
+   - `localhost`（ローカル開発用）
+   - `ohtakaisei.github.io`（本番環境用）
+5. 各ドメインを入力後「Done」をクリック
+
 ### 2. 許可されたメールアドレスの設定
 
 #### 2.1 メールアドレスリストの更新
@@ -109,12 +118,18 @@ service cloud.firestore {
 - Firebase Console で Google プロバイダーが有効になっているか確認
 
 #### 2. 認証エラーが発生する
+- **auth/unauthorized-domain エラー**: Firebase Console で認証済みドメインに `ohtakaisei.github.io` が追加されているか確認
 - Firebase 設定が正しいか確認
 - ブラウザのコンソールでエラーメッセージを確認
 
 #### 3. アクセスが拒否される
 - Firestore セキュリティルールを確認
 - ユーザーのメールアドレスが正しいか確認
+
+#### 4. ドメイン認証エラーの解決手順
+1. Firebase Console → Authentication → Settings
+2. 「Authorized domains」で `ohtakaisei.github.io` を追加
+3. 数分待ってから再度ログインを試行
 
 ## 注意事項
 
