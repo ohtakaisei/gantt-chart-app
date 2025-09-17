@@ -129,7 +129,7 @@
             <div>
                 <h1 class="text-3xl font-bold text-slate-700">ガントチャート</h1>
                 <p class="text-slate-500">プロジェクトの進捗を視覚的に管理します。</p>
-                <p class="text-xs text-slate-400 mt-1">Version 1.4 - Firebase Security Rules版</p>
+                <p class="text-xs text-slate-400 mt-1">Version 1.5 - ガントチャート位置修正版</p>
             </div>
             <div class="flex items-center gap-2 flex-wrap">
                 <!-- ユーザーフィルター -->
@@ -745,6 +745,7 @@
                 barContainer.className = 'relative';
                 barContainer.style.gridColumn = '2 / -1';
                 barContainer.style.gridRow = `2 / span ${Math.max(1, filteredProjects.length)}`;
+                barContainer.style.height = `${filteredProjects.length * 48}px`;
                 if (filteredProjects.length === 0) {
                     const noProjectRow = document.createElement('div');
                     noProjectRow.style.gridColumn = '1 / -1';
@@ -790,9 +791,10 @@
                             const duration = endDay - startDay + 1;
                             console.log('Bar calculation:', { startDay, endDay, duration, daysInYear }); // デバッグ用
                             if (duration > 0) {
-                                bar.style.top = `${index * 48 + 4}px`;
+                                bar.style.top = `${index * 48 + 8}px`;
                                 bar.style.left = `${((startDay - 1) / daysInYear) * 100}%`;
                                 bar.style.width = `${(duration / daysInYear) * 100}%`;
+                                bar.style.height = '32px';
                                 const tooltip = document.createElement('div');
                                 tooltip.className = 'tooltip hidden absolute -top-10 left-1/2 -translate-x-1/2 bg-slate-700 text-white text-xs rounded-md py-1 px-2 shadow-lg whitespace-nowrap';
                                 tooltip.textContent = `${project.startDate} ~ ${project.endDate}`;
@@ -805,7 +807,7 @@
                 }
                 grid.appendChild(barContainer);
                 ganttChartContainer.appendChild(grid);
-                ganttChartContainer.style.height = `${54 + filteredProjects.length * 48}px`;
+                ganttChartContainer.style.height = `${54 + Math.max(1, filteredProjects.length) * 48}px`;
             }
 
             function updateUserUIs() {
