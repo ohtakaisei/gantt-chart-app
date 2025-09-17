@@ -73,12 +73,8 @@
         const app = initializeApp(firebaseConfig);
         const auth = getAuth(app);
         
-        // 許可されたメールアドレスのリスト（管理者が設定）
-        const allowedEmails = [
-            'kaisei@cg5ch.com',  // 管理者のメールアドレスに変更してください
-            'gyo@cg5ch.com',  // 許可するユーザーのメールアドレス
-            'fuko@cg5ch.com'   // 許可するユーザーのメールアドレス
-        ];
+        // 注意: ユーザー制限はFirebaseセキュリティルールで管理されます
+        // コード内でのメールアドレス制限は削除されました
         
         // Google認証プロバイダーの設定
         const provider = new GoogleAuthProvider();
@@ -94,25 +90,14 @@
                 const result = await signInWithPopup(auth, provider);
                 const user = result.user;
                 
-                // メールアドレスをチェック
-                if (allowedEmails.includes(user.email)) {
-                    // 認証成功
-                    sessionStorage.setItem('authenticated', 'true');
-                    sessionStorage.setItem('username', user.displayName || user.email);
-                    sessionStorage.setItem('userEmail', user.email);
-                    sessionStorage.setItem('userPhoto', user.photoURL || '');
-                    
-                    console.log('認証成功:', user.email);
-                    window.location.href = 'index.html';
-                } else {
-                    // 許可されていないメールアドレス
-                    await signOut(auth);
-                    errorMessage.textContent = 'このアカウントはアクセスが許可されていません。管理者にお問い合わせください。';
-                    errorMessage.classList.remove('hidden');
-                    setTimeout(() => {
-                        errorMessage.classList.add('hidden');
-                    }, 5000);
-                }
+                // 認証成功（Firebaseセキュリティルールで制限されます）
+                sessionStorage.setItem('authenticated', 'true');
+                sessionStorage.setItem('username', user.displayName || user.email);
+                sessionStorage.setItem('userEmail', user.email);
+                sessionStorage.setItem('userPhoto', user.photoURL || '');
+                
+                console.log('認証成功:', user.email);
+                window.location.href = 'index.html';
             } catch (error) {
                 console.error('認証エラー:', error);
                 errorMessage.textContent = 'ログインに失敗しました。もう一度お試しください。';
@@ -125,7 +110,7 @@
 
         // 既にログインしている場合はメインページにリダイレクト
         onAuthStateChanged(auth, (user) => {
-            if (user && allowedEmails.includes(user.email)) {
+            if (user) {
                 sessionStorage.setItem('authenticated', 'true');
                 sessionStorage.setItem('username', user.displayName || user.email);
                 sessionStorage.setItem('userEmail', user.email);

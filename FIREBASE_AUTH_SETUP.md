@@ -29,58 +29,48 @@
    - `ohtakaisei.github.io`（本番環境用）
 5. 各ドメインを入力後「Done」をクリック
 
-### 2. 許可されたメールアドレスの設定
+### 2. ユーザー制限の設定（推奨方法）
 
-#### 2.1 メールアドレスリストの更新
-`auth.html` ファイルの以下の部分を編集：
+**重要**: v1.4から、ユーザー制限はFirebaseセキュリティルールで管理されます。
 
-```javascript
-const allowedEmails = [
-    'admin@yourcompany.com',    // 管理者のメールアドレス
-    'user1@yourcompany.com',    // 許可するユーザーのメールアドレス
-    'user2@yourcompany.com'     // 許可するユーザーのメールアドレス
-];
-```
+#### 2.1 Firestoreセキュリティルールでの設定
+詳細な設定手順は `FIREBASE_SECURITY_RULES.md` を参照してください。
 
-#### 2.2 メールアドレスの追加・削除
-- 新しいユーザーを追加する場合：配列にメールアドレスを追加
-- ユーザーを削除する場合：配列からメールアドレスを削除
-
-### 3. セキュリティルールの設定（推奨）
-
-#### 3.1 Firestore セキュリティルール
-Firebase Console の「Firestore Database」→「ルール」で以下を設定：
+#### 2.2 基本的なセキュリティルール
+Firebase Console → Firestore Database → ルール で以下を設定：
 
 ```javascript
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // 認証されたユーザーのみアクセス可能
-    match /{document=**} {
-      allow read, write: if request.auth != null;
-    }
-  }
-}
-```
-
-#### 3.2 より厳密な制限（オプション）
-特定のメールアドレスのみアクセス可能にする場合：
-
-```javascript
-rules_version = '2';
-service cloud.firestore {
-  match /databases/{database}/documents {
-    match /{document=**} {
-      allow read, write: if request.auth != null 
-        && request.auth.token.email in [
-          'admin@yourcompany.com',
-          'user1@yourcompany.com',
-          'user2@yourcompany.com'
+    function isAuthorizedUser() {
+      return request.auth != null && 
+        request.auth.token.email in [
+          'kaisei@cg5ch.com',
+          'gyo@cg5ch.com',
+          'fuko@cg5ch.com'
         ];
     }
+    
+    match /{document=**} {
+      allow read, write: if isAuthorizedUser();
+    }
   }
 }
 ```
+
+#### 2.3 ユーザーの追加・削除
+- Firebase Console → Firestore Database → ルール
+- `isAuthorizedUser()` 関数内のメールアドレス配列を編集
+- 「公開」ボタンをクリック
+
+### 3. セキュリティルールの設定（必須）
+
+#### 3.1 基本的なセキュリティルール
+上記の2.2で設定したルールが適用されます。
+
+#### 3.2 高度な設定
+管理者権限や時間制限などの詳細設定については、`FIREBASE_SECURITY_RULES.md` を参照してください。
 
 ## 使用方法
 
