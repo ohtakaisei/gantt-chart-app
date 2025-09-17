@@ -121,6 +121,7 @@
             <div>
                 <h1 class="text-3xl font-bold text-slate-700">ガントチャート</h1>
                 <p class="text-slate-500">プロジェクトの進捗を視覚的に管理します。</p>
+                <p class="text-xs text-slate-400 mt-1">Version 1.2 - セキュリティ強化版</p>
             </div>
             <div class="flex items-center gap-2 flex-wrap">
                 <!-- ユーザーフィルター -->
@@ -136,6 +137,17 @@
             </div>
         </header>
         
+        <!-- セキュリティ警告 -->
+        <div class="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg">
+            <div class="flex items-center">
+                <i class="fas fa-shield-alt text-red-600 mr-2"></i>
+                <div class="text-sm text-red-800">
+                    <strong>重要:</strong> このアプリケーションは現在開発・テスト段階です。
+                    機密データの入力は避け、本番環境では適切なセキュリティ対策を実装してください。
+                </div>
+            </div>
+        </div>
+
         <!-- メインのガントチャートエリア -->
         <div class="bg-white rounded-xl shadow-lg overflow-hidden">
             <!-- チャートヘッダー (年ナビゲーション) -->
