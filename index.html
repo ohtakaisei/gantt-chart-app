@@ -32,18 +32,25 @@
         };
         
         // Firebase初期化
-        const app = initializeApp(firebaseConfig);
-        const db = getFirestore(app);
-        
-        // グローバル変数として設定
-        window.db = db;
-        window.collection = collection;
-        window.getDocs = getDocs;
-        window.addDoc = addDoc;
-        window.updateDoc = updateDoc;
-        window.deleteDoc = deleteDoc;
-        window.doc = doc;
-        window.onSnapshot = onSnapshot;
+        try {
+            const app = initializeApp(firebaseConfig);
+            const db = getFirestore(app);
+            
+            // グローバル変数として設定
+            window.db = db;
+            window.collection = collection;
+            window.getDocs = getDocs;
+            window.addDoc = addDoc;
+            window.updateDoc = updateDoc;
+            window.deleteDoc = deleteDoc;
+            window.doc = doc;
+            window.onSnapshot = onSnapshot;
+            
+            console.log('Firebaseが正常に初期化されました');
+        } catch (error) {
+            console.error('Firebaseの初期化に失敗しました:', error);
+            window.db = null;
+        }
     </script>
     <!-- Flatpickr (カレンダーライブラリ) の読み込み -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
@@ -354,6 +361,7 @@
                         id: doc.id,
                         ...doc.data()
                     }));
+                    console.log('ユーザーデータを取得しました:', users);
                     
                     // プロジェクトデータを取得
                     const projectsSnapshot = await getDocs(collection(db, 'projects'));
@@ -361,6 +369,7 @@
                         id: doc.id,
                         ...doc.data()
                     }));
+                    console.log('プロジェクトデータを取得しました:', projects);
                     
                     renderAll();
                 } catch (error) {
@@ -515,80 +524,105 @@
             
             // --- Firestore CRUD関数 ---
             async function createUser(userData) {
-                const docRef = await addDoc(collection(db, 'users'), {
-                    name: userData.name,
-                    created_at: new Date().toISOString()
-                });
-                return { id: docRef.id, ...userData };
+                try {
+                    const docRef = await addDoc(collection(db, 'users'), {
+                        name: userData.name,
+                        created_at: new Date().toISOString()
+                    });
+                    return { id: docRef.id, ...userData };
+                } catch (error) {
+                    console.error('ユーザー作成エラー:', error);
+                    throw error;
+                }
             }
             
             async function deleteUser(userId) {
-                await deleteDoc(doc(db, 'users', userId));
-                // 関連プロジェクトの参加者からも削除
-                const projectsSnapshot = await getDocs(collection(db, 'projects'));
-                for (const projectDoc of projectsSnapshot.docs) {
-                    const projectData = projectDoc.data();
-                    if (projectData.participants && projectData.participants.includes(userId)) {
-                        const updatedParticipants = projectData.participants.filter(id => id !== userId);
-                        await updateDoc(doc(db, 'projects', projectDoc.id), {
-                            participants: updatedParticipants,
-                            updated_at: new Date().toISOString()
-                        });
+                try {
+                    await deleteDoc(doc(db, 'users', userId));
+                    // 関連プロジェクトの参加者からも削除
+                    const projectsSnapshot = await getDocs(collection(db, 'projects'));
+                    for (const projectDoc of projectsSnapshot.docs) {
+                        const projectData = projectDoc.data();
+                        if (projectData.participants && projectData.participants.includes(userId)) {
+                            const updatedParticipants = projectData.participants.filter(id => id !== userId);
+                            await updateDoc(doc(db, 'projects', projectDoc.id), {
+                                participants: updatedParticipants,
+                                updated_at: new Date().toISOString()
+                            });
+                        }
                     }
+                    return { id: userId, status: 'deleted' };
+                } catch (error) {
+                    console.error('ユーザー削除エラー:', error);
+                    throw error;
                 }
-                return { id: userId, status: 'deleted' };
             }
             
             async function createProject(projectData) {
-                const colors = ['bg-blue-500', 'bg-green-500', 'bg-purple-500', 'bg-pink-500', 'bg-indigo-500', 'bg-yellow-500', 'bg-red-500', 'bg-teal-500'];
-                const color = colors[Math.floor(Math.random() * colors.length)];
-                const docRef = await addDoc(collection(db, 'projects'), {
-                    name: projectData.name,
-                    startDate: projectData.startDate,
-                    endDate: projectData.endDate,
-                    participants: projectData.participants,
-                    owner: projectData.owner,
-                    details: projectData.details || '',
-                    color: color,
-                    created_at: new Date().toISOString(),
-                    updated_at: new Date().toISOString()
-                });
-                return { 
-                    id: docRef.id, 
-                    name: projectData.name,
-                    startDate: projectData.startDate,
-                    endDate: projectData.endDate,
-                    participants: projectData.participants,
-                    owner: projectData.owner,
-                    details: projectData.details || '',
-                    color: color,
-                    created_at: new Date().toISOString(),
-                    updated_at: new Date().toISOString()
-                };
+                try {
+                    const colors = ['bg-blue-500', 'bg-green-500', 'bg-purple-500', 'bg-pink-500', 'bg-indigo-500', 'bg-yellow-500', 'bg-red-500', 'bg-teal-500'];
+                    const color = colors[Math.floor(Math.random() * colors.length)];
+                    const docRef = await addDoc(collection(db, 'projects'), {
+                        name: projectData.name,
+                        startDate: projectData.startDate,
+                        endDate: projectData.endDate,
+                        participants: projectData.participants,
+                        owner: projectData.owner,
+                        details: projectData.details || '',
+                        color: color,
+                        created_at: new Date().toISOString(),
+                        updated_at: new Date().toISOString()
+                    });
+                    return { 
+                        id: docRef.id, 
+                        name: projectData.name,
+                        startDate: projectData.startDate,
+                        endDate: projectData.endDate,
+                        participants: projectData.participants,
+                        owner: projectData.owner,
+                        details: projectData.details || '',
+                        color: color,
+                        created_at: new Date().toISOString(),
+                        updated_at: new Date().toISOString()
+                    };
+                } catch (error) {
+                    console.error('プロジェクト作成エラー:', error);
+                    throw error;
+                }
             }
             
             async function updateProject(projectData) {
-                await updateDoc(doc(db, 'projects', projectData.id), {
-                    name: projectData.name,
-                    startDate: projectData.startDate,
-                    endDate: projectData.endDate,
-                    participants: projectData.participants,
-                    owner: projectData.owner,
-                    details: projectData.details || '',
-                    updated_at: new Date().toISOString()
-                });
-                // 既存のプロジェクトデータを取得して返す
-                const existingProject = projects.find(p => p.id === projectData.id);
-                return {
-                    ...existingProject,
-                    ...projectData,
-                    updated_at: new Date().toISOString()
-                };
+                try {
+                    await updateDoc(doc(db, 'projects', projectData.id), {
+                        name: projectData.name,
+                        startDate: projectData.startDate,
+                        endDate: projectData.endDate,
+                        participants: projectData.participants,
+                        owner: projectData.owner,
+                        details: projectData.details || '',
+                        updated_at: new Date().toISOString()
+                    });
+                    // 既存のプロジェクトデータを取得して返す
+                    const existingProject = projects.find(p => p.id === projectData.id);
+                    return {
+                        ...existingProject,
+                        ...projectData,
+                        updated_at: new Date().toISOString()
+                    };
+                } catch (error) {
+                    console.error('プロジェクト更新エラー:', error);
+                    throw error;
+                }
             }
             
             async function deleteProject(projectId) {
-                await deleteDoc(doc(db, 'projects', projectId));
-                return { id: projectId, status: 'deleted' };
+                try {
+                    await deleteDoc(doc(db, 'projects', projectId));
+                    return { id: projectId, status: 'deleted' };
+                } catch (error) {
+                    console.error('プロジェクト削除エラー:', error);
+                    throw error;
+                }
             }
             
             // ローカルモードでのデータ処理
@@ -838,76 +872,160 @@
                 console.log('Project data:', projectData); // デバッグ用
 
                 if (!projectData.name || !projectData.startDate || !projectData.endDate || projectData.participants.length === 0 || !projectData.owner) {
-                    alert('必須項目を入力してください。'); return;
+                    alert('必須項目を入力してください。'); 
+                    return;
                 }
 
-                if (editingId) { // 編集
-                    projectData.id = editingId;
-                    const updatedProject = await postData({ action: 'updateProject', payload: projectData });
-                    if (updatedProject) {
-                        const index = projects.findIndex(p => p.id === updatedProject.id);
-                        if(index !== -1) projects[index] = updatedProject;
+                try {
+                    if (editingId) { // 編集
+                        projectData.id = editingId;
+                        const updatedProject = await postData({ action: 'updateProject', payload: projectData });
+                        if (updatedProject) {
+                            const index = projects.findIndex(p => p.id === updatedProject.id || p.id === editingId);
+                            if(index !== -1) {
+                                projects[index] = updatedProject;
+                                console.log('プロジェクトが更新されました:', updatedProject.name);
+                            }
+                        } else {
+                            console.error('プロジェクトの更新に失敗しました');
+                            alert('プロジェクトの更新に失敗しました。');
+                            return;
+                        }
+                    } else { // 新規作成
+                        const newProject = await postData({ action: 'createProject', payload: projectData });
+                        console.log('Created project:', newProject); // デバッグ用
+                        if (newProject) {
+                            projects.push(newProject);
+                            console.log('Projects array after push:', projects); // デバッグ用
+                        } else {
+                            console.error('プロジェクトの作成に失敗しました');
+                            alert('プロジェクトの作成に失敗しました。');
+                            return;
+                        }
                     }
-                } else { // 新規作成
-                    const newProject = await postData({ action: 'createProject', payload: projectData });
-                    console.log('Created project:', newProject); // デバッグ用
-                    if (newProject) {
-                        projects.push(newProject);
-                        console.log('Projects array after push:', projects); // デバッグ用
-                    }
+                    console.log('Rendering all with projects:', projects); // デバッグ用
+                    renderAll();
+                    closeModal(document.getElementById('projectModal'));
+                } catch (error) {
+                    console.error('プロジェクト処理エラー:', error);
+                    alert('プロジェクトの処理中にエラーが発生しました。');
                 }
-                console.log('Rendering all with projects:', projects); // デバッグ用
-                renderAll();
-                closeModal(document.getElementById('projectModal'));
             });
 
             document.getElementById('addUserForm').addEventListener('submit', async (e) => {
                 e.preventDefault();
                 const userNameInput = document.getElementById('userName');
                 const userName = userNameInput.value.trim();
-                if(userName && !users.find(u => u.name === userName)) {
+                
+                if (!userName) {
+                    alert('ユーザー名を入力してください。');
+                    return;
+                }
+                
+                if (users.find(u => u.name === userName)) {
+                    alert('そのユーザー名は既に存在します。');
+                    return;
+                }
+                
+                try {
                     const newUser = await postData({ action: 'createUser', payload: { name: userName } });
                     if (newUser) {
                         users.push(newUser);
                         renderAll();
                         renderUserManagementModal();
                         userNameInput.value = '';
+                        console.log('ユーザーが追加されました:', userName);
+                    } else {
+                        console.error('ユーザーの追加に失敗しました');
+                        alert('ユーザーの追加に失敗しました。');
                     }
+                } catch (error) {
+                    console.error('ユーザー追加エラー:', error);
+                    alert('ユーザーの追加中にエラーが発生しました。');
                 }
             });
             
             function showProjectDetails(projectId) { /* 変更なし */ const p=projects.find(p=>p.id===projectId);if(p){const m=document.getElementById('projectDetailsModal');m.dataset.currentProjectId=p.id;document.getElementById('detailsProjectName').textContent=p.name;document.getElementById('detailsProjectPeriod').textContent=`${p.startDate} ~ ${p.endDate}`;document.getElementById('detailsProjectContent').textContent=p.details||'特記事項なし';const l=document.getElementById('detailsProjectParticipants');l.innerHTML='';p.participants.forEach(uId=>{const u=users.find(u=>u.id===uId);if(u)l.innerHTML+=`<li>${u.name}</li>`;});document.getElementById('projectDetailsHeader').className=`p-6 border-b rounded-t-xl ${p.color}`;openModal('projectDetailsModal');}}
 
-            document.getElementById('editProjectBtn').addEventListener('click', () => { /* 変更なし */ const pId=document.getElementById('projectDetailsModal').dataset.currentProjectId;const p=projects.find(p=>p.id===parseInt(pId));if(p){closeModal(document.getElementById('projectDetailsModal'));const f=document.getElementById('projectForm');f.dataset.editingId=p.id;document.getElementById('projectModalTitle').textContent='プロジェクトの編集';const s=document.getElementById('projectSubmitBtn');s.textContent='更新';s.className='bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded-lg transition';document.getElementById('projectName').value=p.name;datePicker.setDate([p.startDate,p.endDate],!0);document.querySelectorAll('#projectUsers input').forEach(i=>{i.checked=p.participants.includes(parseInt(i.value))});document.getElementById('projectOwner').value=p.owner;document.getElementById('projectDetailsText').value=p.details;openModal('projectModal');}});
+            document.getElementById('editProjectBtn').addEventListener('click', () => {
+                const pId = document.getElementById('projectDetailsModal').dataset.currentProjectId;
+                const p = projects.find(project => project.id === pId || project.id === parseInt(pId));
+                if (p) {
+                    closeModal(document.getElementById('projectDetailsModal'));
+                    const f = document.getElementById('projectForm');
+                    f.dataset.editingId = p.id;
+                    document.getElementById('projectModalTitle').textContent = 'プロジェクトの編集';
+                    const s = document.getElementById('projectSubmitBtn');
+                    s.textContent = '更新';
+                    s.className = 'bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded-lg transition';
+                    document.getElementById('projectName').value = p.name;
+                    datePicker.setDate([p.startDate, p.endDate], true);
+                    document.querySelectorAll('#projectUsers input').forEach(i => {
+                        i.checked = p.participants.includes(parseInt(i.value)) || p.participants.includes(i.value);
+                    });
+                    document.getElementById('projectOwner').value = p.owner;
+                    document.getElementById('projectDetailsText').value = p.details || '';
+                    openModal('projectModal');
+                } else {
+                    console.error('編集するプロジェクトが見つかりません:', pId);
+                    alert('プロジェクトの情報を取得できませんでした。');
+                }
+            });
             
             document.getElementById('deleteProjectBtn').addEventListener('click', () => {
                 const projectId = document.getElementById('projectDetailsModal').dataset.currentProjectId;
-                const project = projects.find(p => p.id === parseInt(projectId));
-                if (!project) return;
+                const project = projects.find(p => p.id === projectId || p.id === parseInt(projectId));
+                if (!project) {
+                    console.error('プロジェクトが見つかりません:', projectId);
+                    return;
+                }
                 showDeleteConfirm('プロジェクトを削除', `本当に「${project.name}」を削除しますか？`, async () => {
-                    const result = await postData({ action: 'deleteProject', payload: { id: project.id } });
-                    if (result) {
-                        projects = projects.filter(p => p.id !== project.id);
-                        closeModal(document.getElementById('projectDetailsModal'));
-                        renderAll();
+                    try {
+                        const result = await postData({ action: 'deleteProject', payload: { id: project.id } });
+                        if (result) {
+                            projects = projects.filter(p => p.id !== project.id);
+                            closeModal(document.getElementById('projectDetailsModal'));
+                            renderAll();
+                            console.log('プロジェクトが削除されました:', project.name);
+                        } else {
+                            console.error('プロジェクトの削除に失敗しました');
+                            alert('プロジェクトの削除に失敗しました。');
+                        }
+                    } catch (error) {
+                        console.error('プロジェクト削除エラー:', error);
+                        alert('プロジェクトの削除中にエラーが発生しました。');
                     }
                 });
             });
             
             function handleDeleteUserClick(event) {
-                const userId = parseInt(event.currentTarget.dataset.userId);
+                const userId = event.currentTarget.dataset.userId;
                 const userName = event.currentTarget.dataset.userName;
-                if (projects.some(p => p.owner === userId)) {
-                    alert(`「${userName}」はプロジェクト作成者のため削除できません。`); return;
+                const userIdInt = parseInt(userId);
+                
+                if (projects.some(p => p.owner === userIdInt || p.owner === userId)) {
+                    alert(`「${userName}」はプロジェクト作成者のため削除できません。`); 
+                    return;
                 }
                 showDeleteConfirm('ユーザーを削除', `本当に「${userName}」を削除しますか？`, async () => {
-                     const result = await postData({ action: 'deleteUser', payload: { id: userId } });
-                     if (result) {
-                        users = users.filter(u => u.id !== userId);
-                        projects.forEach(p => { p.participants = p.participants.filter(id => id !== userId); });
-                        renderUserManagementModal();
-                        renderAll();
-                     }
+                    try {
+                        const result = await postData({ action: 'deleteUser', payload: { id: userId } });
+                        if (result) {
+                            users = users.filter(u => u.id !== userId && u.id !== userIdInt);
+                            projects.forEach(p => { 
+                                p.participants = p.participants.filter(id => id !== userId && id !== userIdInt); 
+                            });
+                            renderUserManagementModal();
+                            renderAll();
+                            console.log('ユーザーが削除されました:', userName);
+                        } else {
+                            console.error('ユーザーの削除に失敗しました');
+                            alert('ユーザーの削除に失敗しました。');
+                        }
+                    } catch (error) {
+                        console.error('ユーザー削除エラー:', error);
+                        alert('ユーザーの削除中にエラーが発生しました。');
+                    }
                 });
             }
 
@@ -936,31 +1054,19 @@
 
             // --- 初期化 ---
             if (!window.db) {
-                document.getElementById('app').innerHTML = `
-                    <div class="text-center p-8 bg-white rounded-lg shadow-md">
-                        <h2 class="text-2xl font-bold text-blue-600 mb-4">デモモードで実行中</h2>
-                        <p class="text-slate-600 mb-4">現在はデモデータで動作しています。</p>
-                        <div class="bg-yellow-50 border border-yellow-200 rounded-lg p-4 text-left">
-                            <h3 class="font-bold text-yellow-800 mb-2">Googleスプレッドシートと連携する場合：</h3>
-                            <p class="text-yellow-700 text-sm">HTMLファイル内の <code>WEB_APP_URL</code> 変数に、設定手順書に従って取得したURLを設定してください。</p>
-                        </div>
-                        <div class="bg-blue-50 border border-blue-200 rounded-lg p-4 text-left mt-4">
-                            <h3 class="font-bold text-blue-800 mb-2">CORSエラーを解決するには：</h3>
-                            <p class="text-blue-700 text-sm">ローカルサーバーで実行することをお勧めします。以下のコマンドで簡単に起動できます：</p>
-                            <code class="block bg-gray-100 p-2 rounded mt-2 text-sm">python -m http.server 8000</code>
-                            <p class="text-blue-700 text-sm mt-2">その後、<code>http://localhost:8000</code> でアクセスしてください。</p>
-                        </div>
-                    </div>`;
+                console.log('Firebaseが利用できないため、デモモードで実行します');
                 loadDemoData();
             } else if (isLocalFile) {
                 // ローカルファイルの場合は即座にデモデータを読み込み
                 console.log('ローカルファイルからアクセスしているため、デモデータを使用します。');
                 loadDemoData();
             } else {
-                // ローカルサーバーからのアクセスの場合のみGoogle Apps Scriptに接続
+                // Firebaseが利用可能な場合はFirestoreからデータを取得
+                console.log('Firebaseが利用可能です。Firestoreからデータを取得します。');
                 fetchData().catch(error => {
                     console.error('初期データ読み込みエラー:', error);
-                    showCorsError();
+                    console.log('デモデータにフォールバックします');
+                    loadDemoData();
                 });
             }
         });
