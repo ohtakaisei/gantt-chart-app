@@ -129,7 +129,7 @@
             <div>
                 <h1 class="text-3xl font-bold text-slate-700">ガントチャート</h1>
                 <p class="text-slate-500">プロジェクトの進捗を視覚的に管理します。</p>
-                <p class="text-xs text-slate-400 mt-1">Version 1.8 - バー位置修正版</p>
+                <p class="text-xs text-slate-400 mt-1">Version 1.9 - 担当者列分離版</p>
             </div>
             <div class="flex items-center gap-2 flex-wrap">
                 <!-- ユーザーフィルター -->
@@ -777,13 +777,17 @@
                 console.log('Rendering Gantt chart for year:', year, 'with projects:', projects); // デバッグ用
                 const grid = document.createElement('div');
                 grid.style.display = 'grid';
-                grid.style.gridTemplateColumns = `180px repeat(12, minmax(80px, 1fr))`;
+                grid.style.gridTemplateColumns = `180px 120px repeat(12, minmax(80px, 1fr))`;
                 const header = document.createElement('div');
                 header.style.display = 'contents';
                 const projectHeader = document.createElement('div');
                 projectHeader.className = 'sticky left-0 z-20 bg-slate-100 p-2 font-semibold border-b border-r border-slate-200';
                 projectHeader.textContent = 'プロジェクト';
                 header.appendChild(projectHeader);
+                const assigneeHeader = document.createElement('div');
+                assigneeHeader.className = 'sticky left-[180px] z-20 bg-slate-100 p-2 font-semibold border-b border-r border-slate-200';
+                assigneeHeader.textContent = '担当者';
+                header.appendChild(assigneeHeader);
                 for (let i = 0; i < 12; i++) {
                     const monthHeader = document.createElement('div');
                     monthHeader.className = 'text-center p-2 border-b border-r border-slate-200 font-medium bg-slate-50';
@@ -795,7 +799,7 @@
                 const filteredProjects = projects.filter(p => filteredUserId === 'all' || p.participants.includes(filteredUserId));
                 const barContainer = document.createElement('div');
                 barContainer.className = 'relative';
-                barContainer.style.gridColumn = '2 / -1';
+                barContainer.style.gridColumn = '3 / -1';
                 barContainer.style.gridRow = `2 / span ${Math.max(1, filteredProjects.length)}`;
                 barContainer.style.height = `${filteredProjects.length * 48}px`;
                 if (filteredProjects.length === 0) {
@@ -808,28 +812,40 @@
                     filteredProjects.forEach((project, index) => {
                         console.log('Rendering project:', project); // デバッグ用
                         const projectNameCell = document.createElement('div');
-                        projectNameCell.className = 'sticky left-0 z-10 bg-white p-3 border-b border-r border-slate-200 text-sm';
+                        projectNameCell.className = 'sticky left-0 z-10 bg-white border-b border-r border-slate-200 text-sm flex items-center';
                         projectNameCell.style.gridRow = `${index + 2}`;
+                        projectNameCell.style.height = '48px';
+                        projectNameCell.style.padding = '0 12px';
                         
-                        // プロジェクト名と担当者を表示
+                        // プロジェクト名のみ表示
                         const projectName = document.createElement('div');
                         projectName.className = 'font-medium truncate';
                         projectName.textContent = project.name;
                         
+                        projectNameCell.appendChild(projectName);
+                        grid.appendChild(projectNameCell);
+                        
+                        // 担当者セル
+                        const assigneeCell = document.createElement('div');
+                        assigneeCell.className = 'sticky left-[180px] z-10 bg-white border-b border-r border-slate-200 text-sm flex items-center';
+                        assigneeCell.style.gridRow = `${index + 2}`;
+                        assigneeCell.style.height = '48px';
+                        assigneeCell.style.padding = '0 12px';
+                        
                         const owner = users.find(u => u.id === project.owner || u.id === parseInt(project.owner));
                         const ownerName = owner ? owner.name : '不明';
                         const ownerDiv = document.createElement('div');
-                        ownerDiv.className = 'text-xs text-slate-500 truncate mt-1';
-                        ownerDiv.textContent = `担当: ${ownerName}`;
+                        ownerDiv.className = 'text-xs text-slate-600 truncate';
+                        ownerDiv.textContent = ownerName;
                         
-                        projectNameCell.appendChild(projectName);
-                        projectNameCell.appendChild(ownerDiv);
-                        grid.appendChild(projectNameCell);
+                        assigneeCell.appendChild(ownerDiv);
+                        grid.appendChild(assigneeCell);
                         for (let i = 0; i < 12; i++) {
                             const cell = document.createElement('div');
                             cell.className = 'border-b border-r border-slate-200';
                             cell.style.gridRow = `${index + 2}`;
-                            cell.style.gridColumn = `${i + 2}`;
+                            cell.style.gridColumn = `${i + 3}`;
+                            cell.style.height = '48px';
                             grid.appendChild(cell);
                         }
                         const startDate = new Date(project.startDate);
@@ -861,6 +877,7 @@
                                 bar.style.left = `${((startDay - 1) / daysInYear) * 100}%`;
                                 bar.style.width = `${(duration / daysInYear) * 100}%`;
                                 bar.style.height = '32px';
+                                bar.style.zIndex = '5';
                                 
                                 const tooltip = document.createElement('div');
                                 tooltip.className = 'tooltip hidden absolute -top-10 left-1/2 -translate-x-1/2 bg-slate-700 text-white text-xs rounded-md py-1 px-2 shadow-lg whitespace-nowrap';
