@@ -129,7 +129,7 @@
             <div>
                 <h1 class="text-3xl font-bold text-slate-700">ガントチャート</h1>
                 <p class="text-slate-500">プロジェクトの進捗を視覚的に管理します。</p>
-                <p class="text-xs text-slate-400 mt-1">Version 1.5 - ガントチャート位置修正版</p>
+                <p class="text-xs text-slate-400 mt-1">Version 1.6 - 機能拡張版</p>
             </div>
             <div class="flex items-center gap-2 flex-wrap">
                 <!-- ユーザーフィルター -->
@@ -142,6 +142,7 @@
                 <!-- 各種ボタン -->
                 <button id="manageUsersBtn" class="bg-indigo-500 hover:bg-indigo-600 text-white font-bold py-2 px-4 rounded-lg shadow transition duration-300 ease-in-out transform hover:scale-105"><i class="fas fa-users-cog mr-2"></i>ユーザー管理</button>
                 <button id="addProjectBtn" class="bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded-lg shadow transition duration-300 ease-in-out transform hover:scale-105"><i class="fas fa-plus-circle mr-2"></i>プロジェクト追加</button>
+                <button id="sortProjectsBtn" class="bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded-lg shadow transition duration-300 ease-in-out transform hover:scale-105"><i class="fas fa-sort mr-2"></i>並び替え</button>
                 <button id="logoutBtn" class="bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-4 rounded-lg shadow transition duration-300 ease-in-out transform hover:scale-105"><i class="fas fa-sign-out-alt mr-2"></i>ログアウト</button>
             </div>
         </header>
@@ -204,6 +205,18 @@
                  <div>
                     <label for="projectDetailsText" class="block text-sm font-medium text-slate-600 mb-1">内容</label>
                     <textarea id="projectDetailsText" rows="3" class="w-full border border-slate-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"></textarea>
+                </div>
+                <div>
+                    <label for="projectCategory" class="block text-sm font-medium text-slate-600 mb-1">カテゴリ</label>
+                    <select id="projectCategory" class="w-full border border-slate-300 bg-white rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500" required>
+                        <option value="">カテゴリを選択してください</option>
+                        <option value="ドラマVFX">ドラマVFX</option>
+                        <option value="ドラマコンセプト">ドラマコンセプト</option>
+                        <option value="番組">番組</option>
+                        <option value="イベント">イベント</option>
+                        <option value="CI">CI</option>
+                        <option value="その他">その他</option>
+                    </select>
                 </div>
             </form>
             <div class="p-4 bg-slate-50 rounded-b-xl flex justify-end gap-2">
@@ -268,6 +281,25 @@
             <div class="p-4 bg-slate-50 rounded-b-xl flex justify-center gap-4">
                 <button type="button" class="cancel-delete-btn bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold py-2 px-6 rounded-lg transition">いいえ</button>
                 <button type="button" id="confirmDeleteBtn" class="bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-6 rounded-lg transition">はい、削除します</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- プロジェクト並び替えモーダル -->
+    <div id="sortProjectsModal" class="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-white rounded-xl shadow-2xl w-full max-w-md modal-enter">
+            <div class="p-6 border-b">
+                <h3 class="text-xl font-bold">プロジェクト並び替え</h3>
+                <p class="text-sm text-slate-500 mt-1">ドラッグ&ドロップでプロジェクトの順序を変更できます</p>
+            </div>
+            <div class="p-6">
+                <div id="sortableProjects" class="space-y-2">
+                    <!-- プロジェクトリストがここに表示される -->
+                </div>
+            </div>
+            <div class="p-4 bg-slate-50 rounded-b-xl flex justify-end gap-2">
+                <button type="button" class="close-modal-btn bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold py-2 px-4 rounded-lg transition">キャンセル</button>
+                <button type="button" id="saveSortBtn" class="bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded-lg transition">保存</button>
             </div>
         </div>
     </div>
@@ -354,6 +386,7 @@
             let users = [];
             let projects = [];
             let filteredUserId = 'all';
+            let projectOrder = []; // プロジェクトの表示順序
 
             // --- DOM要素の取得 ---
             const ganttChartContainer = document.getElementById('ganttChartContainer');
@@ -580,8 +613,7 @@
             
             async function createProject(projectData) {
                 try {
-                    const colors = ['bg-blue-500', 'bg-green-500', 'bg-purple-500', 'bg-pink-500', 'bg-indigo-500', 'bg-yellow-500', 'bg-red-500', 'bg-teal-500'];
-                    const color = colors[Math.floor(Math.random() * colors.length)];
+                    const color = getCategoryColor(projectData.category);
                     const docRef = await addDoc(collection(db, 'projects'), {
                         name: projectData.name,
                         startDate: projectData.startDate,
@@ -589,6 +621,7 @@
                         participants: projectData.participants,
                         owner: projectData.owner,
                         details: projectData.details || '',
+                        category: projectData.category || 'その他',
                         color: color,
                         created_at: new Date().toISOString(),
                         updated_at: new Date().toISOString()
@@ -601,6 +634,7 @@
                         participants: projectData.participants,
                         owner: projectData.owner,
                         details: projectData.details || '',
+                        category: projectData.category || 'その他',
                         color: color,
                         created_at: new Date().toISOString(),
                         updated_at: new Date().toISOString()
@@ -613,6 +647,7 @@
             
             async function updateProject(projectData) {
                 try {
+                    const color = getCategoryColor(projectData.category);
                     await updateDoc(doc(db, 'projects', projectData.id), {
                         name: projectData.name,
                         startDate: projectData.startDate,
@@ -620,6 +655,8 @@
                         participants: projectData.participants,
                         owner: projectData.owner,
                         details: projectData.details || '',
+                        category: projectData.category || 'その他',
+                        color: color,
                         updated_at: new Date().toISOString()
                     });
                     // 既存のプロジェクトデータを取得して返す
@@ -627,6 +664,7 @@
                     return {
                         ...existingProject,
                         ...projectData,
+                        color: color,
                         updated_at: new Date().toISOString()
                     };
                 } catch (error) {
@@ -696,7 +734,20 @@
                 }
             }
             
-            // ランダムな色を取得
+            // カテゴリに応じた色を取得
+            function getCategoryColor(category) {
+                const categoryColors = {
+                    'ドラマVFX': 'bg-purple-500',
+                    'ドラマコンセプト': 'bg-pink-500',
+                    '番組': 'bg-blue-500',
+                    'イベント': 'bg-green-500',
+                    'CI': 'bg-red-500',
+                    'その他': 'bg-gray-500'
+                };
+                return categoryColors[category] || 'bg-gray-500';
+            }
+            
+            // ランダムな色を取得（後方互換性のため）
             function getRandomColor() {
                 const colors = [
                     'bg-blue-500', 'bg-green-500', 'bg-purple-500', 'bg-pink-500',
@@ -736,7 +787,8 @@
                 for (let i = 0; i < 12; i++) {
                     const monthHeader = document.createElement('div');
                     monthHeader.className = 'text-center p-2 border-b border-r border-slate-200 font-medium bg-slate-50';
-                    monthHeader.textContent = `${i + 1}月`;
+                    const monthNumber = ((i + 3) % 12) + 1; // 4月スタート（3月オフセット）
+                    monthHeader.textContent = `${monthNumber}月`;
                     header.appendChild(monthHeader);
                 }
                 grid.appendChild(header);
@@ -756,9 +808,22 @@
                     filteredProjects.forEach((project, index) => {
                         console.log('Rendering project:', project); // デバッグ用
                         const projectNameCell = document.createElement('div');
-                        projectNameCell.className = 'sticky left-0 z-10 bg-white p-3 border-b border-r border-slate-200 text-sm truncate';
-                        projectNameCell.textContent = project.name;
+                        projectNameCell.className = 'sticky left-0 z-10 bg-white p-3 border-b border-r border-slate-200 text-sm';
                         projectNameCell.style.gridRow = `${index + 2}`;
+                        
+                        // プロジェクト名と担当者を表示
+                        const projectName = document.createElement('div');
+                        projectName.className = 'font-medium truncate';
+                        projectName.textContent = project.name;
+                        
+                        const owner = users.find(u => u.id === project.owner || u.id === parseInt(project.owner));
+                        const ownerName = owner ? owner.name : '不明';
+                        const ownerDiv = document.createElement('div');
+                        ownerDiv.className = 'text-xs text-slate-500 truncate mt-1';
+                        ownerDiv.textContent = `担当: ${ownerName}`;
+                        
+                        projectNameCell.appendChild(projectName);
+                        projectNameCell.appendChild(ownerDiv);
                         grid.appendChild(projectNameCell);
                         for (let i = 0; i < 12; i++) {
                             const cell = document.createElement('div');
@@ -795,12 +860,26 @@
                                 bar.style.left = `${((startDay - 1) / daysInYear) * 100}%`;
                                 bar.style.width = `${(duration / daysInYear) * 100}%`;
                                 bar.style.height = '32px';
+                                
+                                // 参加メンバー名を表示するボックス
+                                const memberBox = document.createElement('div');
+                                memberBox.className = 'absolute -left-2 top-1/2 -translate-y-1/2 bg-white border border-slate-300 rounded px-2 py-1 text-xs text-slate-600 shadow-sm whitespace-nowrap z-20';
+                                const memberNames = project.participants.map(participantId => {
+                                    const user = users.find(u => u.id === participantId || u.id === parseInt(participantId));
+                                    return user ? user.name : '不明';
+                                }).join(', ');
+                                memberBox.textContent = memberNames;
+                                memberBox.style.maxWidth = '120px';
+                                memberBox.style.overflow = 'hidden';
+                                memberBox.style.textOverflow = 'ellipsis';
+                                
                                 const tooltip = document.createElement('div');
                                 tooltip.className = 'tooltip hidden absolute -top-10 left-1/2 -translate-x-1/2 bg-slate-700 text-white text-xs rounded-md py-1 px-2 shadow-lg whitespace-nowrap';
                                 tooltip.textContent = `${project.startDate} ~ ${project.endDate}`;
                                 bar.appendChild(tooltip);
                                 bar.addEventListener('click', () => showProjectDetails(project.id));
                                 barContainer.appendChild(bar);
+                                barContainer.appendChild(memberBox);
                             }
                         }
                     });
@@ -879,6 +958,12 @@
             document.getElementById('addProjectBtn').addEventListener('click', () => { /* 変更なし */ const f=document.getElementById('projectForm');f.reset();f.removeAttribute('data-editing-id');document.getElementById('projectModalTitle').textContent='新規プロジェクト作成';document.getElementById('projectSubmitBtn').textContent='作成';document.getElementById('projectSubmitBtn').className='bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded-lg transition';datePicker.clear();openModal('projectModal'); });
             document.getElementById('manageUsersBtn').addEventListener('click', () => { renderUserManagementModal(); openModal('userManagementModal'); });
             
+            // 並び替えボタンのイベント
+            document.getElementById('sortProjectsBtn').addEventListener('click', () => {
+                renderSortableProjects();
+                openModal('sortProjectsModal');
+            });
+            
             // ログアウト機能
             document.getElementById('logoutBtn').addEventListener('click', async () => {
                 try {
@@ -904,11 +989,12 @@
                     participants: Array.from(document.querySelectorAll('#projectUsers input:checked')).map(el => el.value),
                     owner: document.getElementById('projectOwner').value,
                     details: document.getElementById('projectDetailsText').value,
+                    category: document.getElementById('projectCategory').value,
                 };
 
                 console.log('Project data:', projectData); // デバッグ用
 
-                if (!projectData.name || !projectData.startDate || !projectData.endDate || projectData.participants.length === 0 || !projectData.owner) {
+                if (!projectData.name || !projectData.startDate || !projectData.endDate || projectData.participants.length === 0 || !projectData.owner || !projectData.category) {
                     alert('必須項目を入力してください。'); 
                     return;
                 }
@@ -1002,6 +1088,7 @@
                     });
                     document.getElementById('projectOwner').value = p.owner;
                     document.getElementById('projectDetailsText').value = p.details || '';
+                    document.getElementById('projectCategory').value = p.category || 'その他';
                     openModal('projectModal');
                 } else {
                     console.error('編集するプロジェクトが見つかりません:', pId);
@@ -1088,6 +1175,95 @@
                 updateUserUIs();
                 renderGanttChart();
             }
+            
+            // 並び替え可能なプロジェクトリストをレンダリング
+            function renderSortableProjects() {
+                const container = document.getElementById('sortableProjects');
+                container.innerHTML = '';
+                
+                const filteredProjects = projects.filter(p => filteredUserId === 'all' || p.participants.includes(filteredUserId));
+                
+                filteredProjects.forEach((project, index) => {
+                    const projectItem = document.createElement('div');
+                    projectItem.className = 'flex items-center p-3 bg-slate-50 rounded-lg border border-slate-200 cursor-move hover:bg-slate-100 transition';
+                    projectItem.draggable = true;
+                    projectItem.dataset.projectId = project.id;
+                    
+                    const dragHandle = document.createElement('div');
+                    dragHandle.className = 'mr-3 text-slate-400';
+                    dragHandle.innerHTML = '<i class="fas fa-grip-vertical"></i>';
+                    
+                    const projectInfo = document.createElement('div');
+                    projectInfo.className = 'flex-1';
+                    
+                    const projectName = document.createElement('div');
+                    projectName.className = 'font-medium text-slate-800';
+                    projectName.textContent = project.name;
+                    
+                    const projectCategory = document.createElement('div');
+                    projectCategory.className = 'text-xs text-slate-500';
+                    projectCategory.textContent = `カテゴリ: ${project.category || 'その他'}`;
+                    
+                    projectInfo.appendChild(projectName);
+                    projectInfo.appendChild(projectCategory);
+                    
+                    projectItem.appendChild(dragHandle);
+                    projectItem.appendChild(projectInfo);
+                    container.appendChild(projectItem);
+                    
+                    // ドラッグ&ドロップイベント
+                    projectItem.addEventListener('dragstart', (e) => {
+                        e.dataTransfer.setData('text/plain', project.id);
+                        projectItem.classList.add('opacity-50');
+                    });
+                    
+                    projectItem.addEventListener('dragend', (e) => {
+                        projectItem.classList.remove('opacity-50');
+                    });
+                    
+                    projectItem.addEventListener('dragover', (e) => {
+                        e.preventDefault();
+                        projectItem.classList.add('bg-blue-50');
+                    });
+                    
+                    projectItem.addEventListener('dragleave', (e) => {
+                        projectItem.classList.remove('bg-blue-50');
+                    });
+                    
+                    projectItem.addEventListener('drop', (e) => {
+                        e.preventDefault();
+                        projectItem.classList.remove('bg-blue-50');
+                        
+                        const draggedId = e.dataTransfer.getData('text/plain');
+                        const draggedElement = container.querySelector(`[data-project-id="${draggedId}"]`);
+                        
+                        if (draggedElement && draggedElement !== projectItem) {
+                            const nextSibling = projectItem.nextSibling;
+                            container.insertBefore(draggedElement, nextSibling);
+                        }
+                    });
+                });
+            }
+            
+            // 並び替え保存
+            document.getElementById('saveSortBtn').addEventListener('click', () => {
+                const container = document.getElementById('sortableProjects');
+                const projectItems = Array.from(container.children);
+                const newOrder = projectItems.map(item => item.dataset.projectId);
+                
+                // プロジェクトの順序を更新
+                const sortedProjects = [];
+                newOrder.forEach(projectId => {
+                    const project = projects.find(p => p.id === projectId || p.id === parseInt(projectId));
+                    if (project) {
+                        sortedProjects.push(project);
+                    }
+                });
+                
+                projects = sortedProjects;
+                renderAll();
+                closeModal(document.getElementById('sortProjectsModal'));
+            });
 
             // --- 初期化 ---
             if (!window.db) {
