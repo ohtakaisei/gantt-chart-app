@@ -129,7 +129,7 @@
             <div>
                 <h1 class="text-3xl font-bold text-slate-700">ガントチャート</h1>
                 <p class="text-slate-500">プロジェクトの進捗を視覚的に管理します。</p>
-                <p class="text-xs text-slate-400 mt-1">Version 1.6 - 機能拡張版</p>
+                <p class="text-xs text-slate-400 mt-1">Version 1.7 - UI修正版</p>
             </div>
             <div class="flex items-center gap-2 flex-wrap">
                 <!-- ユーザーフィルター -->
@@ -293,7 +293,7 @@
                 <p class="text-sm text-slate-500 mt-1">ドラッグ&ドロップでプロジェクトの順序を変更できます</p>
             </div>
             <div class="p-6">
-                <div id="sortableProjects" class="space-y-2">
+                <div id="sortableProjects" class="space-y-2 max-h-96 overflow-y-auto">
                     <!-- プロジェクトリストがここに表示される -->
                 </div>
             </div>
@@ -796,7 +796,7 @@
                 const barContainer = document.createElement('div');
                 barContainer.className = 'relative';
                 barContainer.style.gridColumn = '2 / -1';
-                barContainer.style.gridRow = `2 / span ${Math.max(1, filteredProjects.length)}`;
+                barContainer.style.gridRow = `2 / ${2 + Math.max(1, filteredProjects.length)}`;
                 barContainer.style.height = `${filteredProjects.length * 48}px`;
                 if (filteredProjects.length === 0) {
                     const noProjectRow = document.createElement('div');
@@ -856,7 +856,7 @@
                             const duration = endDay - startDay + 1;
                             console.log('Bar calculation:', { startDay, endDay, duration, daysInYear }); // デバッグ用
                             if (duration > 0) {
-                                bar.style.top = `${index * 48 + 8}px`;
+                                bar.style.top = `${index * 48 + 4}px`;
                                 bar.style.left = `${((startDay - 1) / daysInYear) * 100}%`;
                                 bar.style.width = `${(duration / daysInYear) * 100}%`;
                                 bar.style.height = '32px';
@@ -872,6 +872,7 @@
                                 memberBox.style.maxWidth = '120px';
                                 memberBox.style.overflow = 'hidden';
                                 memberBox.style.textOverflow = 'ellipsis';
+                                memberBox.style.top = `${index * 48 + 16}px`;
                                 
                                 const tooltip = document.createElement('div');
                                 tooltip.className = 'tooltip hidden absolute -top-10 left-1/2 -translate-x-1/2 bg-slate-700 text-white text-xs rounded-md py-1 px-2 shadow-lg whitespace-nowrap';
