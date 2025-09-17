@@ -129,7 +129,7 @@
             <div>
                 <h1 class="text-3xl font-bold text-slate-700">ガントチャート</h1>
                 <p class="text-slate-500">プロジェクトの進捗を視覚的に管理します。</p>
-                <p class="text-xs text-slate-400 mt-1">Version 1.9 - 担当者列分離版</p>
+                <p class="text-xs text-slate-400 mt-1">Version 1.10 - コンパクト版</p>
             </div>
             <div class="flex items-center gap-2 flex-wrap">
                 <!-- ユーザーフィルター -->
@@ -801,7 +801,7 @@
                 barContainer.className = 'relative';
                 barContainer.style.gridColumn = '3 / -1';
                 barContainer.style.gridRow = `2 / span ${Math.max(1, filteredProjects.length)}`;
-                barContainer.style.height = `${filteredProjects.length * 48}px`;
+                barContainer.style.height = `${filteredProjects.length * 40}px`;
                 if (filteredProjects.length === 0) {
                     const noProjectRow = document.createElement('div');
                     noProjectRow.style.gridColumn = '1 / -1';
@@ -814,7 +814,7 @@
                         const projectNameCell = document.createElement('div');
                         projectNameCell.className = 'sticky left-0 z-10 bg-white border-b border-r border-slate-200 text-sm flex items-center';
                         projectNameCell.style.gridRow = `${index + 2}`;
-                        projectNameCell.style.height = '48px';
+                        projectNameCell.style.height = '40px';
                         projectNameCell.style.padding = '0 12px';
                         
                         // プロジェクト名のみ表示
@@ -829,7 +829,7 @@
                         const assigneeCell = document.createElement('div');
                         assigneeCell.className = 'sticky left-[180px] z-10 bg-white border-b border-r border-slate-200 text-sm flex items-center';
                         assigneeCell.style.gridRow = `${index + 2}`;
-                        assigneeCell.style.height = '48px';
+                        assigneeCell.style.height = '40px';
                         assigneeCell.style.padding = '0 12px';
                         
                         const owner = users.find(u => u.id === project.owner || u.id === parseInt(project.owner));
@@ -845,7 +845,7 @@
                             cell.className = 'border-b border-r border-slate-200';
                             cell.style.gridRow = `${index + 2}`;
                             cell.style.gridColumn = `${i + 3}`;
-                            cell.style.height = '48px';
+                            cell.style.height = '40px';
                             grid.appendChild(cell);
                         }
                         const startDate = new Date(project.startDate);
@@ -873,10 +873,10 @@
                             console.log('Bar calculation:', { startDay, endDay, duration, daysInYear }); // デバッグ用
                             if (duration > 0) {
                                 bar.style.position = 'absolute';
-                                bar.style.top = `${index * 48 + 8}px`;
+                                bar.style.top = `${index * 40 + 4}px`;
                                 bar.style.left = `${((startDay - 1) / daysInYear) * 100}%`;
                                 bar.style.width = `${(duration / daysInYear) * 100}%`;
-                                bar.style.height = '32px';
+                                bar.style.height = '28px';
                                 bar.style.zIndex = '5';
                                 
                                 const tooltip = document.createElement('div');
